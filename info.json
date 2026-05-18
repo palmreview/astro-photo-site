@@ -1,0 +1,22 @@
+{
+"name": "Sirius",
+"catalog": "Alpha Canis Majoris",
+"alsoKnownAs": "The Dog Star",
+"category": "Stars",
+"objectType": "Binary star system",
+"constellation": "Canis Major",
+"distance": "About 8.6 light-years",
+"shortDescription": "The brightest star visible in Earth's night sky.",
+"description": "Sirius is the brightest star in the night sky and is actually a binary star system made up of Sirius A and the faint white dwarf Sirius B.",
+"beginnerNote": "Bright stars are great for learning focus and tracking, but they can easily become overexposed in astrophotography.",
+"equipment": "Seestar S30",
+"captureDate": "",
+"totalExposure": "",
+"processing": "Siril",
+"bortle": "",
+"tags": [
+"star",
+"bright star",
+"beginner"
+]
+}

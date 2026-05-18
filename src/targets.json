@@ -1,0 +1,19 @@
+[
+  {
+    "slug": "sun",
+    "name": "The Sun",
+    "category": "Solar System",
+    "imageUrl": "PASTE_YOUR_CLOUDFLARE_SUN_MAIN_IMAGE_URL_HERE",
+    "shortDescription": "Our closest star, the source of light and warmth for Earth.",
+    "description": "The Sun is the star at the center of our solar system. In solar photos, you may see darker patches called sunspots. These are cooler areas caused by strong magnetic activity on the Sun’s surface."
+  },
+  {
+    "slug": "m44",
+    "name": "The Beehive Cluster",
+    "catalog": "M44",
+    "category": "Deep Sky",
+    "imageUrl": "PASTE_YOUR_CLOUDFLARE_M44_MAIN_IMAGE_URL_HERE",
+    "shortDescription": "A bright star cluster that looks like a small swarm of stars.",
+    "description": "The Beehive Cluster is a group of stars that formed together and still travel through space as a loose family. It is a great beginner target because it is bright, beautiful, and easy to understand visually."
+  }
+]

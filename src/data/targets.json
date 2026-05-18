@@ -1,0 +1,31 @@
+[
+  {
+    "slug": "sun",
+    "name": "The Sun",
+    "category": "Solar System",
+    "folder": "solar-system/Sun",
+    "imageUrl": "/solar-system/Sun/main.jpeg",
+    "shortDescription": "Our closest star.",
+    "description": "The Sun is the star at the center of our solar system."
+  },
+  {
+    "slug": "m44",
+    "name": "The Beehive Cluster",
+    "catalog": "M44",
+    "category": "Deep Sky",
+    "folder": "deep-sky/M44",
+    "imageUrl": "/deep-sky/M44/main.jpg",
+    "shortDescription": "A bright star cluster.",
+    "description": "The Beehive Cluster is a group of stars."
+  },
+  {
+    "slug": "ngc4565",
+    "name": "The Needle Galaxy",
+    "catalog": "NGC 4565",
+    "category": "Deep Sky",
+    "folder": "deep-sky/NGC4565",
+    "imageUrl": "/deep-sky/NGC4565/main.jpg",
+    "shortDescription": "A thin edge-on spiral galaxy viewed from the side.",
+    "description": "NGC 4565 is an edge-on spiral galaxy often called the Needle Galaxy. We see it from the side, which makes it appear as a long thin line across space."
+  }
+]

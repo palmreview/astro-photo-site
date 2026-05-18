@@ -1,0 +1,522 @@
+---
+import { getTargetBySlug, getTargetsFromR2 } from "../../lib/r2-images.js";
+
+export async function getStaticPaths() {
+  const targets = await getTargetsFromR2();
+
+  return targets.map((target) => ({
+    params: {
+      slug: target.slug,
+    },
+  }));
+}
+
+const { slug } = Astro.params;
+const target = await getTargetBySlug(slug);
+
+if (!target) {
+  return Astro.redirect("/");
+}
+
+const photos = target.photos || [];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{target.name} | Andrew's Astro Photos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+
+  <body>
+    <main>
+      <a class="back-link" href="/">← Back to gallery</a>
+
+      <section class="hero">
+        <p class="category">{target.category}</p>
+
+        <h1>
+          {target.catalog
+            ? `${target.catalog}: ${target.name}`
+            : target.name}
+        </h1>
+
+        <p>{target.description || target.shortDescription}</p>
+      </section>
+
+      <section class="metadata-grid">
+        {target.objectType && (
+          <div class="metadata-card">
+            <span>Object Type</span>
+            <strong>{target.objectType}</strong>
+          </div>
+        )}
+
+        {target.constellation && (
+          <div class="metadata-card">
+            <span>Constellation</span>
+            <strong>{target.constellation}</strong>
+          </div>
+        )}
+
+        {target.distance && (
+          <div class="metadata-card">
+            <span>Distance</span>
+            <strong>{target.distance}</strong>
+          </div>
+        )}
+
+        {target.alsoKnownAs && (
+          <div class="metadata-card">
+            <span>Also Known As</span>
+            <strong>{target.alsoKnownAs}</strong>
+          </div>
+        )}
+
+        {target.totalExposure && (
+          <div class="metadata-card">
+            <span>Total Exposure</span>
+            <strong>{target.totalExposure}</strong>
+          </div>
+        )}
+
+        {target.equipment && (
+          <div class="metadata-card">
+            <span>Equipment</span>
+            <strong>{target.equipment}</strong>
+          </div>
+        )}
+
+        {target.processing && (
+          <div class="metadata-card">
+            <span>Processing</span>
+            <strong>{target.processing}</strong>
+          </div>
+        )}
+
+        {target.bortle && (
+          <div class="metadata-card">
+            <span>Bortle</span>
+            <strong>{target.bortle}</strong>
+          </div>
+        )}
+
+        {target.captureDate && (
+          <div class="metadata-card">
+            <span>Capture Date</span>
+            <strong>{target.captureDate}</strong>
+          </div>
+        )}
+      </section>
+
+      {target.skyMapUrl && (
+        <section class="sky-map-section">
+          <div class="sky-map-copy">
+            <h2>Where It Is in the Sky</h2>
+            <p>
+              This static sky map gives a general idea of where to find this target.
+              The exact position changes based on your location, date, and time.
+            </p>
+          </div>
+
+          <a href={target.skyMapUrl} target="_blank" rel="noreferrer">
+            <img src={target.skyMapUrl} alt={`Sky map for ${target.name}`} />
+          </a>
+        </section>
+      )}
+
+      {target.beginnerNote && (
+        <section class="beginner-note">
+          <h2>What to Notice</h2>
+          <p>{target.beginnerNote}</p>
+        </section>
+      )}
+
+      {photos.length > 0 ? (
+        <section
+          class="viewer"
+          data-photos={JSON.stringify(photos)}
+          data-target-name={target.name}
+        >
+          <button
+            class="nav-button left"
+            type="button"
+            aria-label="Previous image"
+          >
+            ‹
+          </button>
+
+          <div class="image-stage">
+            <img
+              id="main-photo"
+              src={photos[0].url}
+              alt={`${target.name} photo`}
+            />
+          </div>
+
+          <button
+            class="nav-button right"
+            type="button"
+            aria-label="Next image"
+          >
+            ›
+          </button>
+
+          <div class="viewer-footer">
+            <p id="photo-title">{photos[0].filename}</p>
+            <p id="photo-counter">
+              1 of {photos.length}
+            </p>
+          </div>
+        </section>
+      ) : (
+        <section class="empty-state">
+          <p>No photos found for this target yet.</p>
+        </section>
+      )}
+
+      {photos.length > 1 && (
+        <section class="thumb-section">
+          <h2>All Photos</h2>
+
+          <div class="thumbnail-row">
+            {photos.map((photo, index) => (
+              <button
+                class={`thumb-button ${index === 0 ? "active" : ""}`}
+                type="button"
+                data-index={index}
+              >
+                <img
+                  src={photo.url}
+                  alt={`${target.name} thumbnail`}
+                />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+    </main>
+
+    <script>
+      const viewer = document.querySelector(".viewer");
+
+      if (viewer) {
+        const photos = JSON.parse(viewer.dataset.photos || "[]");
+        const targetName = viewer.dataset.targetName || "Astro photo";
+
+        const mainPhoto = document.getElementById("main-photo");
+        const photoTitle = document.getElementById("photo-title");
+        const photoCounter = document.getElementById("photo-counter");
+
+        const previousButton = document.querySelector(".nav-button.left");
+        const nextButton = document.querySelector(".nav-button.right");
+
+        const thumbnailButtons = Array.from(
+          document.querySelectorAll(".thumb-button")
+        );
+
+        let currentIndex = 0;
+
+        function showPhoto(index) {
+          if (!photos.length) return;
+
+          currentIndex = (index + photos.length) % photos.length;
+
+          const photo = photos[currentIndex];
+
+          mainPhoto.src = photo.url;
+          mainPhoto.alt = `${targetName} photo`;
+
+          photoTitle.textContent = photo.filename;
+
+          photoCounter.textContent =
+            `${currentIndex + 1} of ${photos.length}`;
+
+          thumbnailButtons.forEach((button, buttonIndex) => {
+            button.classList.toggle(
+              "active",
+              buttonIndex === currentIndex
+            );
+          });
+        }
+
+        previousButton?.addEventListener("click", () => {
+          showPhoto(currentIndex - 1);
+        });
+
+        nextButton?.addEventListener("click", () => {
+          showPhoto(currentIndex + 1);
+        });
+
+        thumbnailButtons.forEach((button) => {
+          button.addEventListener("click", () => {
+            showPhoto(Number(button.dataset.index));
+          });
+        });
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowLeft") {
+            showPhoto(currentIndex - 1);
+          }
+
+          if (event.key === "ArrowRight") {
+            showPhoto(currentIndex + 1);
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
+
+<style>
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      sans-serif;
+    background: radial-gradient(circle at top, #0c1222, #05070d);
+    color: white;
+  }
+
+  main {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 20px;
+  }
+
+  .back-link {
+    color: #9db7ff;
+    text-decoration: none;
+    font-size: 15px;
+  }
+
+  .hero {
+    margin: 30px 0;
+  }
+
+  .category {
+    color: #7da2ff;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 13px;
+    margin: 0 0 10px;
+  }
+
+  h1 {
+    font-size: 44px;
+    margin: 0 0 14px;
+  }
+
+  .hero p {
+    color: #c7d2ea;
+    font-size: 18px;
+    line-height: 1.6;
+    max-width: 760px;
+  }
+
+  .metadata-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px;
+    margin: 26px 0 34px;
+  }
+
+  .metadata-card {
+    background: rgba(18, 24, 39, 0.75);
+    border: 1px solid rgba(125, 162, 255, 0.22);
+    border-radius: 14px;
+    padding: 14px;
+  }
+
+  .metadata-card span {
+    display: block;
+    color: #9db7ff;
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  .metadata-card strong {
+    color: white;
+    font-size: 16px;
+  }
+
+  .sky-map-section {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 22px;
+    align-items: center;
+    background: rgba(18, 24, 39, 0.75);
+    border: 1px solid rgba(125, 162, 255, 0.22);
+    border-radius: 18px;
+    padding: 20px;
+    margin: 0 0 34px;
+  }
+
+  .sky-map-section h2 {
+    margin: 0 0 10px;
+    font-size: 24px;
+  }
+
+  .sky-map-section p {
+    color: #c7d2ea;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .sky-map-section img {
+    width: 100%;
+    border-radius: 14px;
+    background: black;
+    display: block;
+  }
+
+  .beginner-note {
+    background: rgba(125, 162, 255, 0.1);
+    border: 1px solid rgba(125, 162, 255, 0.25);
+    border-radius: 18px;
+    padding: 20px;
+    margin: 0 0 34px;
+  }
+
+  .beginner-note h2 {
+    margin: 0 0 10px;
+    font-size: 24px;
+  }
+
+  .beginner-note p {
+    color: #c7d2ea;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .viewer {
+    position: relative;
+    background: rgba(18, 24, 39, 0.75);
+    border: 1px solid rgba(125, 162, 255, 0.22);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .image-stage {
+    background: black;
+    min-height: 360px;
+    display: grid;
+    place-items: center;
+  }
+
+  .image-stage img {
+    width: 100%;
+    max-height: 76vh;
+    object-fit: contain;
+    display: block;
+  }
+
+  .nav-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 52px;
+    height: 72px;
+    border: 0;
+    border-radius: 14px;
+    background: rgba(5, 7, 13, 0.7);
+    color: white;
+    font-size: 52px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  .nav-button:hover {
+    background: rgba(125, 162, 255, 0.35);
+  }
+
+  .nav-button.left {
+    left: 14px;
+  }
+
+  .nav-button.right {
+    right: 14px;
+  }
+
+  .viewer-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px;
+    color: #c7d2ea;
+    font-size: 14px;
+  }
+
+  .viewer-footer p {
+    margin: 0;
+    word-break: break-word;
+  }
+
+  .thumb-section {
+    margin-top: 34px;
+  }
+
+  .thumb-section h2 {
+    font-size: 24px;
+    margin-bottom: 16px;
+  }
+
+  .thumbnail-row {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+
+  .thumb-button {
+    width: 130px;
+    height: 92px;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    overflow: hidden;
+    background: black;
+    cursor: pointer;
+  }
+
+  .thumb-button.active {
+    border-color: #9db7ff;
+  }
+
+  .thumb-button img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .empty-state {
+    padding: 30px;
+    background: rgba(18, 24, 39, 0.75);
+    border: 1px solid rgba(125, 162, 255, 0.22);
+    border-radius: 18px;
+    color: #c7d2ea;
+  }
+
+  @media (max-width: 700px) {
+    h1 {
+      font-size: 34px;
+    }
+
+    .sky-map-section {
+      grid-template-columns: 1fr;
+    }
+
+    .nav-button {
+      width: 44px;
+      height: 60px;
+      font-size: 42px;
+    }
+
+    .viewer-footer {
+      flex-direction: column;
+      gap: 6px;
+    }
+  }
+</style>
