@@ -1,24 +1,29 @@
 ---
-import { getTargetBySlug, getTargetsFromR2 } from "../../lib/r2-images.js";
+import targets from "../../data/targets.json";
+import { getImagesForFolder, getDownloadsForFolder } from "../../lib/r2-images.js";
 
 export async function getStaticPaths() {
-  const targets = await getTargetsFromR2();
+  return await Promise.all(
+    targets.map(async (target) => {
+      const images = await getImagesForFolder(target.folder);
+      const downloads = await getDownloadsForFolder(target.folder);
 
-  return targets.map((target) => ({
-    params: {
-      slug: target.slug,
-    },
-  }));
+      return {
+        params: { slug: target.slug },
+        props: {
+          target: {
+            ...target,
+            images,
+            downloads
+          }
+        }
+      };
+    })
+  );
 }
 
-const { slug } = Astro.params;
-const target = await getTargetBySlug(slug);
-
-if (!target) {
-  return Astro.redirect("/");
-}
-
-const photos = target.photos || [];
+const { target } = Astro.props;
+const firstImage = target.images[0];
 ---
 
 <html lang="en">
@@ -30,493 +35,380 @@ const photos = target.photos || [];
 
   <body>
     <main>
-      <a class="back-link" href="/">← Back to gallery</a>
+      <a class="back" href="/">← Back to gallery</a>
 
-      <section class="hero">
-        <p class="category">{target.category}</p>
+      <article class="target">
+        <div class="image-panel">
+          {firstImage ? (
+            <>
+              <img id="mainImage" src={firstImage.url} alt={target.name} />
 
-        <h1>
-          {target.catalog
-            ? `${target.catalog}: ${target.name}`
-            : target.name}
-        </h1>
+              <p id="imageLabel" class="image-label">
+                {firstImage.label}
+              </p>
 
-        <p>{target.description || target.shortDescription}</p>
-      </section>
+              {target.images.length > 1 && (
+                <>
+                  <div class="controls">
+                    <button id="prevBtn" type="button">←</button>
+                    <span id="counter">1 / {target.images.length}</span>
+                    <button id="nextBtn" type="button">→</button>
+                  </div>
 
-      <section class="metadata-grid">
-        {target.objectType && (
-          <div class="metadata-card">
-            <span>Object Type</span>
-            <strong>{target.objectType}</strong>
-          </div>
-        )}
+                  <div class="thumbnails">
+                    {target.images.map((img, i) => (
+                      <img
+                        src={img.url}
+                        alt={img.label}
+                        class={`thumb ${i === 0 ? "active" : ""}`}
+                        data-index={i}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <div class="missing-image">
+              No photos found in this Cloudflare folder yet.
+            </div>
+          )}
+        </div>
 
-        {target.constellation && (
-          <div class="metadata-card">
-            <span>Constellation</span>
-            <strong>{target.constellation}</strong>
-          </div>
-        )}
+        <div class="content">
+          <p class="category">{target.category}</p>
 
-        {target.distance && (
-          <div class="metadata-card">
-            <span>Distance</span>
-            <strong>{target.distance}</strong>
-          </div>
-        )}
+          <h1>
+            {target.catalog ? `${target.catalog}: ${target.name}` : target.name}
+          </h1>
 
-        {target.alsoKnownAs && (
-          <div class="metadata-card">
-            <span>Also Known As</span>
-            <strong>{target.alsoKnownAs}</strong>
-          </div>
-        )}
+          <p class="description">{target.description}</p>
 
-        {target.totalExposure && (
-          <div class="metadata-card">
-            <span>Total Exposure</span>
-            <strong>{target.totalExposure}</strong>
-          </div>
-        )}
+          <section class="info-grid">
+            {target.dateCaptured && (
+              <div class="info-card">
+                <span>Date captured</span>
+                <strong>{target.dateCaptured}</strong>
+              </div>
+            )}
 
-        {target.equipment && (
-          <div class="metadata-card">
-            <span>Equipment</span>
-            <strong>{target.equipment}</strong>
-          </div>
-        )}
+            {target.equipment && (
+              <div class="info-card">
+                <span>Equipment</span>
+                <strong>{target.equipment}</strong>
+              </div>
+            )}
 
-        {target.processing && (
-          <div class="metadata-card">
-            <span>Processing</span>
-            <strong>{target.processing}</strong>
-          </div>
-        )}
+            {target.location && (
+              <div class="info-card">
+                <span>Location</span>
+                <strong>{target.location}</strong>
+              </div>
+            )}
+          </section>
 
-        {target.bortle && (
-          <div class="metadata-card">
-            <span>Bortle</span>
-            <strong>{target.bortle}</strong>
-          </div>
-        )}
+          <section class="extra">
+            <h2>What you're looking at</h2>
+            <p>{target.whatYouAreSeeing}</p>
+          </section>
 
-        {target.captureDate && (
-          <div class="metadata-card">
-            <span>Capture Date</span>
-            <strong>{target.captureDate}</strong>
-          </div>
-        )}
-      </section>
+          <section class="extra">
+            <h2>Why it is interesting</h2>
+            <p>{target.whyItIsInteresting}</p>
+          </section>
 
-      {target.skyMapUrl && (
-        <section class="sky-map-section">
-          <div class="sky-map-copy">
-            <h2>Where It Is in the Sky</h2>
-            <p>
-              This static sky map gives a general idea of where to find this target.
-              The exact position changes based on your location, date, and time.
-            </p>
-          </div>
+          <section class="extra">
+            <h2>How I captured it</h2>
+            <p>{target.captureNotes}</p>
+          </section>
 
-          <a href={target.skyMapUrl} target="_blank" rel="noreferrer">
-            <img src={target.skyMapUrl} alt={`Sky map for ${target.name}`} />
-          </a>
-        </section>
-      )}
+          {target.downloads.length > 0 && (
+            <section class="downloads">
+              <h2>Download raw files</h2>
+              <p>
+                Want to practice processing this target yourself? These files are available
+                for download.
+              </p>
 
-      {target.beginnerNote && (
-        <section class="beginner-note">
-          <h2>What to Notice</h2>
-          <p>{target.beginnerNote}</p>
-        </section>
-      )}
-
-      {photos.length > 0 ? (
-        <section
-          class="viewer"
-          data-photos={JSON.stringify(photos)}
-          data-target-name={target.name}
-        >
-          <button
-            class="nav-button left"
-            type="button"
-            aria-label="Previous image"
-          >
-            ‹
-          </button>
-
-          <div class="image-stage">
-            <img
-              id="main-photo"
-              src={photos[0].url}
-              alt={`${target.name} photo`}
-            />
-          </div>
-
-          <button
-            class="nav-button right"
-            type="button"
-            aria-label="Next image"
-          >
-            ›
-          </button>
-
-          <div class="viewer-footer">
-            <p id="photo-title">{photos[0].filename}</p>
-            <p id="photo-counter">
-              1 of {photos.length}
-            </p>
-          </div>
-        </section>
-      ) : (
-        <section class="empty-state">
-          <p>No photos found for this target yet.</p>
-        </section>
-      )}
-
-      {photos.length > 1 && (
-        <section class="thumb-section">
-          <h2>All Photos</h2>
-
-          <div class="thumbnail-row">
-            {photos.map((photo, index) => (
-              <button
-                class={`thumb-button ${index === 0 ? "active" : ""}`}
-                type="button"
-                data-index={index}
-              >
-                <img
-                  src={photo.url}
-                  alt={`${target.name} thumbnail`}
-                />
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+              <div class="download-list">
+                {target.downloads.map((file) => (
+                  <a class="download-card" href={file.url} download>
+                    <div>
+                      <strong>{file.label}</strong>
+                      <span>{file.type} file</span>
+                    </div>
+                    <span class="download-button">Download</span>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      </article>
     </main>
 
-    <script>
-      const viewer = document.querySelector(".viewer");
-
-      if (viewer) {
-        const photos = JSON.parse(viewer.dataset.photos || "[]");
-        const targetName = viewer.dataset.targetName || "Astro photo";
-
-        const mainPhoto = document.getElementById("main-photo");
-        const photoTitle = document.getElementById("photo-title");
-        const photoCounter = document.getElementById("photo-counter");
-
-        const previousButton = document.querySelector(".nav-button.left");
-        const nextButton = document.querySelector(".nav-button.right");
-
-        const thumbnailButtons = Array.from(
-          document.querySelectorAll(".thumb-button")
-        );
-
+    {target.images.length > 0 && (
+      <script define:vars={{ images: target.images }}>
         let currentIndex = 0;
 
-        function showPhoto(index) {
-          if (!photos.length) return;
+        const mainImage = document.getElementById("mainImage");
+        const imageLabel = document.getElementById("imageLabel");
+        const counter = document.getElementById("counter");
+        const prevBtn = document.getElementById("prevBtn");
+        const nextBtn = document.getElementById("nextBtn");
+        const thumbs = document.querySelectorAll(".thumb");
 
-          currentIndex = (index + photos.length) % photos.length;
+        function updateActiveThumb() {
+          thumbs.forEach((thumb) => thumb.classList.remove("active"));
+          if (thumbs[currentIndex]) thumbs[currentIndex].classList.add("active");
+        }
 
-          const photo = photos[currentIndex];
+        function showImage(index) {
+          currentIndex = index;
+          mainImage.src = images[currentIndex].url;
+          mainImage.alt = images[currentIndex].label;
 
-          mainPhoto.src = photo.url;
-          mainPhoto.alt = `${targetName} photo`;
+          if (imageLabel) imageLabel.textContent = images[currentIndex].label;
+          if (counter) counter.textContent = `${currentIndex + 1} / ${images.length}`;
 
-          photoTitle.textContent = photo.filename;
+          updateActiveThumb();
+        }
 
-          photoCounter.textContent =
-            `${currentIndex + 1} of ${photos.length}`;
+        thumbs.forEach((thumb) => {
+          thumb.addEventListener("click", () => {
+            showImage(Number(thumb.dataset.index));
+          });
+        });
 
-          thumbnailButtons.forEach((button, buttonIndex) => {
-            button.classList.toggle(
-              "active",
-              buttonIndex === currentIndex
-            );
+        if (prevBtn && nextBtn) {
+          prevBtn.addEventListener("click", () => {
+            showImage((currentIndex - 1 + images.length) % images.length);
+          });
+
+          nextBtn.addEventListener("click", () => {
+            showImage((currentIndex + 1) % images.length);
           });
         }
 
-        previousButton?.addEventListener("click", () => {
-          showPhoto(currentIndex - 1);
-        });
-
-        nextButton?.addEventListener("click", () => {
-          showPhoto(currentIndex + 1);
-        });
-
-        thumbnailButtons.forEach((button) => {
-          button.addEventListener("click", () => {
-            showPhoto(Number(button.dataset.index));
-          });
-        });
-
-        document.addEventListener("keydown", (event) => {
-          if (event.key === "ArrowLeft") {
-            showPhoto(currentIndex - 1);
-          }
-
-          if (event.key === "ArrowRight") {
-            showPhoto(currentIndex + 1);
-          }
-        });
-      }
-    </script>
+        updateActiveThumb();
+      </script>
+    )}
   </body>
 </html>
 
 <style>
   body {
     margin: 0;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-      sans-serif;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: radial-gradient(circle at top, #0c1222, #05070d);
     color: white;
   }
 
   main {
-    max-width: 1100px;
+    max-width: 1000px;
     margin: 0 auto;
-    padding: 40px 20px;
+    padding: 32px 20px 48px;
   }
 
-  .back-link {
+  .back {
     color: #9db7ff;
     text-decoration: none;
-    font-size: 15px;
+    display: inline-block;
+    margin-bottom: 24px;
   }
 
-  .hero {
-    margin: 30px 0;
+  .target {
+    background: rgba(18, 24, 39, 0.75);
+    border: 1px solid rgba(125, 162, 255, 0.22);
+    border-radius: 22px;
+    overflow: hidden;
+  }
+
+  .image-panel {
+    background: black;
+  }
+
+  #mainImage {
+    width: 100%;
+    max-height: 650px;
+    object-fit: contain;
+    display: block;
+  }
+
+  .missing-image {
+    min-height: 260px;
+    display: grid;
+    place-items: center;
+    color: #9db7ff;
+    padding: 24px;
+    text-align: center;
+  }
+
+  .image-label {
+    text-align: center;
+    font-size: 14px;
+    color: #c7d2ea;
+    margin: 0;
+    padding: 10px 12px 12px;
+    background: #05070d;
+    border-top: 1px solid rgba(125, 162, 255, 0.12);
+  }
+
+  .controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    background: #05070d;
+    border-top: 1px solid rgba(125, 162, 255, 0.2);
+  }
+
+  .controls button {
+    background: #121827;
+    color: white;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    padding: 9px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 18px;
+    min-width: 44px;
+  }
+
+  #counter {
+    color: #c7d2ea;
+    font-size: 14px;
+    min-width: 60px;
+    text-align: center;
+  }
+
+  .thumbnails {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    overflow-x: auto;
+    background: #05070d;
+    border-top: 1px solid rgba(125, 162, 255, 0.12);
+  }
+
+  .thumb {
+    height: 64px;
+    width: 88px;
+    object-fit: cover;
+    border-radius: 8px;
+    cursor: pointer;
+    opacity: 0.65;
+    border: 2px solid transparent;
+    flex: 0 0 auto;
+    background: black;
+  }
+
+  .thumb:hover {
+    opacity: 1;
+  }
+
+  .thumb.active {
+    border-color: #7da2ff;
+    opacity: 1;
+  }
+
+  .content {
+    padding: 26px;
   }
 
   .category {
-    color: #7da2ff;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-size: 13px;
+    color: #9db7ff;
+    font-size: 14px;
     margin: 0 0 10px;
   }
 
   h1 {
-    font-size: 44px;
-    margin: 0 0 14px;
+    font-size: 38px;
+    margin: 0 0 18px;
   }
 
-  .hero p {
-    color: #c7d2ea;
+  .description {
+    color: #d8deee;
     font-size: 18px;
-    line-height: 1.6;
-    max-width: 760px;
+    line-height: 1.65;
+    margin-bottom: 26px;
   }
 
-  .metadata-grid {
+  .info-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 14px;
-    margin: 26px 0 34px;
+    margin: 0 0 28px;
   }
 
-  .metadata-card {
-    background: rgba(18, 24, 39, 0.75);
-    border: 1px solid rgba(125, 162, 255, 0.22);
+  .info-card {
+    background: rgba(5, 7, 13, 0.55);
+    border: 1px solid rgba(125, 162, 255, 0.18);
     border-radius: 14px;
     padding: 14px;
   }
 
-  .metadata-card span {
+  .info-card span {
     display: block;
     color: #9db7ff;
     font-size: 13px;
     margin-bottom: 6px;
   }
 
-  .metadata-card strong {
-    color: white;
+  .extra,
+  .downloads {
+    border-top: 1px solid rgba(125, 162, 255, 0.2);
+    padding-top: 22px;
+    margin-top: 22px;
+  }
+
+  .extra h2,
+  .downloads h2 {
+    font-size: 22px;
+    margin: 0 0 10px;
+  }
+
+  .extra p,
+  .downloads p {
+    color: #c7d2ea;
     font-size: 16px;
-  }
-
-  .sky-map-section {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 260px;
-    gap: 22px;
-    align-items: center;
-    background: rgba(18, 24, 39, 0.75);
-    border: 1px solid rgba(125, 162, 255, 0.22);
-    border-radius: 18px;
-    padding: 20px;
-    margin: 0 0 34px;
-  }
-
-  .sky-map-section h2 {
-    margin: 0 0 10px;
-    font-size: 24px;
-  }
-
-  .sky-map-section p {
-    color: #c7d2ea;
     line-height: 1.6;
     margin: 0;
   }
 
-  .sky-map-section img {
-    width: 100%;
-    border-radius: 14px;
-    background: black;
-    display: block;
-  }
-
-  .beginner-note {
-    background: rgba(125, 162, 255, 0.1);
-    border: 1px solid rgba(125, 162, 255, 0.25);
-    border-radius: 18px;
-    padding: 20px;
-    margin: 0 0 34px;
-  }
-
-  .beginner-note h2 {
-    margin: 0 0 10px;
-    font-size: 24px;
-  }
-
-  .beginner-note p {
-    color: #c7d2ea;
-    line-height: 1.6;
-    margin: 0;
-  }
-
-  .viewer {
-    position: relative;
-    background: rgba(18, 24, 39, 0.75);
-    border: 1px solid rgba(125, 162, 255, 0.22);
-    border-radius: 18px;
-    overflow: hidden;
-  }
-
-  .image-stage {
-    background: black;
-    min-height: 360px;
+  .download-list {
     display: grid;
-    place-items: center;
+    gap: 12px;
+    margin-top: 16px;
   }
 
-  .image-stage img {
-    width: 100%;
-    max-height: 76vh;
-    object-fit: contain;
-    display: block;
-  }
-
-  .nav-button {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 52px;
-    height: 72px;
-    border: 0;
-    border-radius: 14px;
-    background: rgba(5, 7, 13, 0.7);
-    color: white;
-    font-size: 52px;
-    line-height: 1;
-    cursor: pointer;
-    z-index: 2;
-  }
-
-  .nav-button:hover {
-    background: rgba(125, 162, 255, 0.35);
-  }
-
-  .nav-button.left {
-    left: 14px;
-  }
-
-  .nav-button.right {
-    right: 14px;
-  }
-
-  .viewer-footer {
+  .download-card {
     display: flex;
     justify-content: space-between;
     gap: 16px;
-    padding: 14px 18px;
-    color: #c7d2ea;
+    align-items: center;
+    background: rgba(5, 7, 13, 0.55);
+    border: 1px solid rgba(125, 162, 255, 0.18);
+    border-radius: 14px;
+    padding: 14px;
+    color: white;
+    text-decoration: none;
+  }
+
+  .download-card strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .download-card span {
+    color: #9db7ff;
     font-size: 14px;
   }
 
-  .viewer-footer p {
-    margin: 0;
-    word-break: break-word;
-  }
-
-  .thumb-section {
-    margin-top: 34px;
-  }
-
-  .thumb-section h2 {
-    font-size: 24px;
-    margin-bottom: 16px;
-  }
-
-  .thumbnail-row {
-    display: flex;
-    gap: 12px;
-    overflow-x: auto;
-    padding-bottom: 8px;
-  }
-
-  .thumb-button {
-    width: 130px;
-    height: 92px;
-    flex: 0 0 auto;
-    padding: 0;
-    border: 2px solid transparent;
-    border-radius: 12px;
-    overflow: hidden;
-    background: black;
-    cursor: pointer;
-  }
-
-  .thumb-button.active {
-    border-color: #9db7ff;
-  }
-
-  .thumb-button img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  .empty-state {
-    padding: 30px;
-    background: rgba(18, 24, 39, 0.75);
-    border: 1px solid rgba(125, 162, 255, 0.22);
-    border-radius: 18px;
-    color: #c7d2ea;
-  }
-
-  @media (max-width: 700px) {
-    h1 {
-      font-size: 34px;
-    }
-
-    .sky-map-section {
-      grid-template-columns: 1fr;
-    }
-
-    .nav-button {
-      width: 44px;
-      height: 60px;
-      font-size: 42px;
-    }
-
-    .viewer-footer {
-      flex-direction: column;
-      gap: 6px;
-    }
+  .download-button {
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    padding: 8px 12px;
+    white-space: nowrap;
   }
 </style>

@@ -1,7 +1,18 @@
 ---
-import { getTargetsFromR2 } from "../lib/r2-images.js";
+import targetsData from "../data/targets.json";
+import { getImagesForFolder } from "../lib/r2-images.js";
 
-const targets = await getTargetsFromR2();
+const targets = await Promise.all(
+  targetsData.map(async (target) => {
+    const images = await getImagesForFolder(target.folder);
+
+    return {
+      ...target,
+      imageUrl: images[0]?.url,
+      photoCount: images.length
+    };
+  })
+);
 ---
 
 <html lang="en">
@@ -25,12 +36,18 @@ const targets = await getTargetsFromR2();
         {targets.map((target) => (
           <a class="card" href={`/targets/${target.slug}/`}>
             <div class="image-wrapper">
-              <img src={target.imageUrl} alt={target.name} />
+              {target.imageUrl ? (
+                <img src={target.imageUrl} alt={target.name} />
+              ) : (
+                <div class="missing-image">No photos found</div>
+              )}
             </div>
 
             <div class="card-content">
               <p class="category">{target.category}</p>
-              <h2>{target.catalog ? `${target.catalog}: ${target.name}` : target.name}</h2>
+              <h2>
+                {target.catalog ? `${target.catalog}: ${target.name}` : target.name}
+              </h2>
               <p class="desc">{target.shortDescription}</p>
 
               <p class="photo-count">
@@ -108,6 +125,14 @@ const targets = await getTargetsFromR2();
     height: 100%;
     object-fit: cover;
     display: block;
+  }
+
+  .missing-image {
+    height: 100%;
+    display: grid;
+    place-items: center;
+    color: #9db7ff;
+    font-size: 14px;
   }
 
   .card-content {

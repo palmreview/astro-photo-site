@@ -1,22 +1,15 @@
 {
-"name": "Sirius",
-"catalog": "Alpha Canis Majoris",
-"alsoKnownAs": "The Dog Star",
-"category": "Stars",
-"objectType": "Binary star system",
-"constellation": "Canis Major",
-"distance": "About 8.6 light-years",
-"shortDescription": "The brightest star visible in Earth's night sky.",
-"description": "Sirius is the brightest star in the night sky and is actually a binary star system made up of Sirius A and the faint white dwarf Sirius B.",
-"beginnerNote": "Bright stars are great for learning focus and tracking, but they can easily become overexposed in astrophotography.",
-"equipment": "Seestar S30",
-"captureDate": "",
-"totalExposure": "",
-"processing": "Siril",
-"bortle": "",
-"tags": [
-"star",
-"bright star",
-"beginner"
-]
+  "slug": "m3",
+  "name": "Hercules Globular Cluster",
+  "catalog": "M3",
+  "category": "Deep Sky",
+  "folder": "deep-sky/M3/",
+  "shortDescription": "A massive ball-shaped cluster containing hundreds of thousands of ancient stars.",
+  "description": "Messier 3, often called M3, is one of the brightest and most impressive globular clusters visible from Earth. It contains hundreds of thousands of stars packed tightly together in a spherical shape. Many of the stars in M3 are extremely old, making this object a glimpse into the early history of our galaxy.",
+  "whatYouAreSeeing": "You are looking at a dense swarm of ancient stars held together by gravity. Unlike open clusters, globular clusters are much older and contain far more stars packed into a relatively small area.",
+  "whyItIsInteresting": "M3 is interesting because it is one of the best examples of a globular cluster visible in the northern sky. It helps show how different star clusters can look and gives a sense of the enormous scale of our galaxy.",
+  "captureNotes": "Captured as part of a beginner astrophotography journey using the Seestar S30. Globular clusters are excellent beginner deep-sky targets because they are bright and easy to locate.",
+  "equipment": "Seestar S30",
+  "dateCaptured": "",
+  "location": "Florida"
 }
