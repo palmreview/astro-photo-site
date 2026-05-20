@@ -1,6 +1,9 @@
 ---
 import targets from "../../data/targets.json";
-import { getImagesForFolder, getDownloadsForFolder } from "../../lib/r2-images.js";
+import {
+  getImagesForFolder,
+  getDownloadsForFolder
+} from "../../lib/r2-images.js";
 
 export async function getStaticPaths() {
   return await Promise.all(
@@ -85,6 +88,13 @@ const firstImage = target.images[0];
           <p class="description">{target.description}</p>
 
           <section class="info-grid">
+            {target.distance && (
+              <div class="info-card">
+                <span>Distance</span>
+                <strong>{target.distance}</strong>
+              </div>
+            )}
+
             {target.dateCaptured && (
               <div class="info-card">
                 <span>Date captured</span>
@@ -125,9 +135,10 @@ const firstImage = target.images[0];
           {target.downloads.length > 0 && (
             <section class="downloads">
               <h2>Download raw files</h2>
+
               <p>
-                Want to practice processing this target yourself? These files are available
-                for download.
+                Want to try processing this target yourself? Download the
+                original data files below.
               </p>
 
               <div class="download-list">
@@ -137,7 +148,10 @@ const firstImage = target.images[0];
                       <strong>{file.label}</strong>
                       <span>{file.type} file</span>
                     </div>
-                    <span class="download-button">Download</span>
+
+                    <span class="download-button">
+                      Download
+                    </span>
                   </a>
                 ))}
               </div>
@@ -160,16 +174,25 @@ const firstImage = target.images[0];
 
         function updateActiveThumb() {
           thumbs.forEach((thumb) => thumb.classList.remove("active"));
-          if (thumbs[currentIndex]) thumbs[currentIndex].classList.add("active");
+
+          if (thumbs[currentIndex]) {
+            thumbs[currentIndex].classList.add("active");
+          }
         }
 
         function showImage(index) {
           currentIndex = index;
+
           mainImage.src = images[currentIndex].url;
           mainImage.alt = images[currentIndex].label;
 
-          if (imageLabel) imageLabel.textContent = images[currentIndex].label;
-          if (counter) counter.textContent = `${currentIndex + 1} / ${images.length}`;
+          if (imageLabel) {
+            imageLabel.textContent = images[currentIndex].label;
+          }
+
+          if (counter) {
+            counter.textContent = `${currentIndex + 1} / ${images.length}`;
+          }
 
           updateActiveThumb();
         }
@@ -251,7 +274,6 @@ const firstImage = target.images[0];
     margin: 0;
     padding: 10px 12px 12px;
     background: #05070d;
-    border-top: 1px solid rgba(125, 162, 255, 0.12);
   }
 
   .controls {
@@ -261,7 +283,6 @@ const firstImage = target.images[0];
     gap: 14px;
     padding: 14px;
     background: #05070d;
-    border-top: 1px solid rgba(125, 162, 255, 0.2);
   }
 
   .controls button {
@@ -272,14 +293,6 @@ const firstImage = target.images[0];
     border-radius: 10px;
     cursor: pointer;
     font-size: 18px;
-    min-width: 44px;
-  }
-
-  #counter {
-    color: #c7d2ea;
-    font-size: 14px;
-    min-width: 60px;
-    text-align: center;
   }
 
   .thumbnails {
@@ -288,7 +301,6 @@ const firstImage = target.images[0];
     padding: 12px;
     overflow-x: auto;
     background: #05070d;
-    border-top: 1px solid rgba(125, 162, 255, 0.12);
   }
 
   .thumb {
@@ -300,11 +312,6 @@ const firstImage = target.images[0];
     opacity: 0.65;
     border: 2px solid transparent;
     flex: 0 0 auto;
-    background: black;
-  }
-
-  .thumb:hover {
-    opacity: 1;
   }
 
   .thumb.active {
@@ -338,7 +345,7 @@ const firstImage = target.images[0];
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 14px;
-    margin: 0 0 28px;
+    margin-bottom: 28px;
   }
 
   .info-card {
@@ -365,15 +372,13 @@ const firstImage = target.images[0];
   .extra h2,
   .downloads h2 {
     font-size: 22px;
-    margin: 0 0 10px;
+    margin-bottom: 10px;
   }
 
   .extra p,
   .downloads p {
     color: #c7d2ea;
-    font-size: 16px;
     line-height: 1.6;
-    margin: 0;
   }
 
   .download-list {
@@ -385,8 +390,8 @@ const firstImage = target.images[0];
   .download-card {
     display: flex;
     justify-content: space-between;
-    gap: 16px;
     align-items: center;
+    gap: 16px;
     background: rgba(5, 7, 13, 0.55);
     border: 1px solid rgba(125, 162, 255, 0.18);
     border-radius: 14px;
