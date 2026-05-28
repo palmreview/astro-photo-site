@@ -140,7 +140,6 @@ const firstImage = target.images[0];
           {target.downloads.length > 0 && (
             <section class="downloads">
               <h2>Download raw files</h2>
-
               <p>
                 Want to try processing this target yourself? Download the
                 original data files below.
@@ -153,7 +152,6 @@ const firstImage = target.images[0];
                       <strong>{file.label}</strong>
                       <span>{file.type} file</span>
                     </div>
-
                     <span class="download-button">Download</span>
                   </a>
                 ))}
@@ -200,6 +198,16 @@ const firstImage = target.images[0];
         )}
 
         <p id="lightboxLabel" class="lightbox-label">{firstImage.label}</p>
+
+        <a
+          id="fullResolutionLink"
+          class="full-resolution-link"
+          href={firstImage.url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          View full resolution
+        </a>
       </div>
     )}
 
@@ -220,6 +228,7 @@ const firstImage = target.images[0];
         const lightboxClose = document.getElementById("lightboxClose");
         const lightboxPrev = document.getElementById("lightboxPrev");
         const lightboxNext = document.getElementById("lightboxNext");
+        const fullResolutionLink = document.getElementById("fullResolutionLink");
 
         function updateActiveThumb() {
           thumbs.forEach((thumb) => thumb.classList.remove("active"));
@@ -250,6 +259,10 @@ const firstImage = target.images[0];
 
           if (lightboxLabel) {
             lightboxLabel.textContent = images[currentIndex].label;
+          }
+
+          if (fullResolutionLink) {
+            fullResolutionLink.href = images[currentIndex].url;
           }
 
           updateActiveThumb();
@@ -575,7 +588,7 @@ const firstImage = target.images[0];
 
   .lightbox img {
     max-width: 96vw;
-    max-height: 86vh;
+    max-height: 82vh;
     object-fit: contain;
     border-radius: 10px;
   }
@@ -585,6 +598,21 @@ const firstImage = target.images[0];
     font-size: 14px;
     margin: 12px 0 0;
     text-align: center;
+  }
+
+  .full-resolution-link {
+    color: white;
+    text-decoration: none;
+    margin-top: 12px;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    padding: 8px 14px;
+    background: rgba(18, 24, 39, 0.9);
+    font-size: 14px;
+  }
+
+  .full-resolution-link:hover {
+    background: #1c2540;
   }
 
   .lightbox-close {
