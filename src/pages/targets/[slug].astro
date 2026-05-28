@@ -44,7 +44,7 @@ const firstImage = target.images[0];
         <div class="image-panel">
           {firstImage ? (
             <>
-              <img id="mainImage" src={firstImage.url} alt={target.name} />
+              <img id="mainImage" src={firstImage.url} alt={target.name} title="Click to enlarge" />
 
               <p id="imageLabel" class="image-label">
                 {firstImage.label}
@@ -162,6 +162,17 @@ const firstImage = target.images[0];
     </main>
 
     {target.images.length > 0 && (
+      <div id="lightbox" class="lightbox" aria-hidden="true">
+        <button id="lightboxClose" class="lightbox-close" type="button" aria-label="Close full screen image">
+          ×
+        </button>
+
+        <img id="lightboxImage" src={firstImage.url} alt={firstImage.label} />
+        <p id="lightboxLabel" class="lightbox-label">{firstImage.label}</p>
+      </div>
+    )}
+
+    {target.images.length > 0 && (
       <script define:vars={{ images: target.images }}>
         let currentIndex = 0;
 
@@ -171,6 +182,11 @@ const firstImage = target.images[0];
         const prevBtn = document.getElementById("prevBtn");
         const nextBtn = document.getElementById("nextBtn");
         const thumbs = document.querySelectorAll(".thumb");
+
+        const lightbox = document.getElementById("lightbox");
+        const lightboxImage = document.getElementById("lightboxImage");
+        const lightboxLabel = document.getElementById("lightboxLabel");
+        const lightboxClose = document.getElementById("lightboxClose");
 
         function updateActiveThumb() {
           thumbs.forEach((thumb) => thumb.classList.remove("active"));
@@ -194,8 +210,53 @@ const firstImage = target.images[0];
             counter.textContent = `${currentIndex + 1} / ${images.length}`;
           }
 
+          if (lightboxImage) {
+            lightboxImage.src = images[currentIndex].url;
+            lightboxImage.alt = images[currentIndex].label;
+          }
+
+          if (lightboxLabel) {
+            lightboxLabel.textContent = images[currentIndex].label;
+          }
+
           updateActiveThumb();
         }
+
+        function openLightbox() {
+          if (!lightbox) return;
+
+          lightbox.classList.add("open");
+          lightbox.setAttribute("aria-hidden", "false");
+          document.body.classList.add("lightbox-open");
+        }
+
+        function closeLightbox() {
+          if (!lightbox) return;
+
+          lightbox.classList.remove("open");
+          lightbox.setAttribute("aria-hidden", "true");
+          document.body.classList.remove("lightbox-open");
+        }
+
+        mainImage.addEventListener("click", openLightbox);
+
+        if (lightboxClose) {
+          lightboxClose.addEventListener("click", closeLightbox);
+        }
+
+        if (lightbox) {
+          lightbox.addEventListener("click", (event) => {
+            if (event.target === lightbox) {
+              closeLightbox();
+            }
+          });
+        }
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape") {
+            closeLightbox();
+          }
+        });
 
         thumbs.forEach((thumb) => {
           thumb.addEventListener("click", () => {
@@ -227,6 +288,10 @@ const firstImage = target.images[0];
     color: white;
   }
 
+  body.lightbox-open {
+    overflow: hidden;
+  }
+
   main {
     max-width: 1000px;
     margin: 0 auto;
@@ -256,6 +321,7 @@ const firstImage = target.images[0];
     max-height: 650px;
     object-fit: contain;
     display: block;
+    cursor: zoom-in;
   }
 
   .missing-image {
@@ -415,5 +481,50 @@ const firstImage = target.images[0];
     border-radius: 999px;
     padding: 8px 12px;
     white-space: nowrap;
+  }
+
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.92);
+    padding: 24px;
+  }
+
+  .lightbox.open {
+    display: flex;
+  }
+
+  .lightbox img {
+    max-width: 96vw;
+    max-height: 86vh;
+    object-fit: contain;
+    border-radius: 10px;
+  }
+
+  .lightbox-label {
+    color: #c7d2ea;
+    font-size: 14px;
+    margin: 12px 0 0;
+    text-align: center;
+  }
+
+  .lightbox-close {
+    position: fixed;
+    top: 18px;
+    right: 22px;
+    background: rgba(18, 24, 39, 0.9);
+    color: white;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    width: 42px;
+    height: 42px;
+    cursor: pointer;
+    font-size: 28px;
+    line-height: 1;
   }
 </style>
