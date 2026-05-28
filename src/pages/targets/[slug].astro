@@ -44,7 +44,12 @@ const firstImage = target.images[0];
         <div class="image-panel">
           {firstImage ? (
             <>
-              <img id="mainImage" src={firstImage.url} alt={target.name} title="Click to enlarge" />
+              <img
+                id="mainImage"
+                src={firstImage.url}
+                alt={target.name}
+                title="Click to enlarge"
+              />
 
               <p id="imageLabel" class="image-label">
                 {firstImage.label}
@@ -149,9 +154,7 @@ const firstImage = target.images[0];
                       <span>{file.type} file</span>
                     </div>
 
-                    <span class="download-button">
-                      Download
-                    </span>
+                    <span class="download-button">Download</span>
                   </a>
                 ))}
               </div>
@@ -163,11 +166,39 @@ const firstImage = target.images[0];
 
     {target.images.length > 0 && (
       <div id="lightbox" class="lightbox" aria-hidden="true">
-        <button id="lightboxClose" class="lightbox-close" type="button" aria-label="Close full screen image">
+        <button
+          id="lightboxClose"
+          class="lightbox-close"
+          type="button"
+          aria-label="Close full screen image"
+        >
           ×
         </button>
 
+        {target.images.length > 1 && (
+          <button
+            id="lightboxPrev"
+            class="lightbox-nav lightbox-prev"
+            type="button"
+            aria-label="Previous image"
+          >
+            ←
+          </button>
+        )}
+
         <img id="lightboxImage" src={firstImage.url} alt={firstImage.label} />
+
+        {target.images.length > 1 && (
+          <button
+            id="lightboxNext"
+            class="lightbox-nav lightbox-next"
+            type="button"
+            aria-label="Next image"
+          >
+            →
+          </button>
+        )}
+
         <p id="lightboxLabel" class="lightbox-label">{firstImage.label}</p>
       </div>
     )}
@@ -187,6 +218,8 @@ const firstImage = target.images[0];
         const lightboxImage = document.getElementById("lightboxImage");
         const lightboxLabel = document.getElementById("lightboxLabel");
         const lightboxClose = document.getElementById("lightboxClose");
+        const lightboxPrev = document.getElementById("lightboxPrev");
+        const lightboxNext = document.getElementById("lightboxNext");
 
         function updateActiveThumb() {
           thumbs.forEach((thumb) => thumb.classList.remove("active"));
@@ -252,11 +285,19 @@ const firstImage = target.images[0];
           });
         }
 
-        document.addEventListener("keydown", (event) => {
-          if (event.key === "Escape") {
-            closeLightbox();
-          }
-        });
+        if (lightboxPrev) {
+          lightboxPrev.addEventListener("click", (event) => {
+            event.stopPropagation();
+            showImage((currentIndex - 1 + images.length) % images.length);
+          });
+        }
+
+        if (lightboxNext) {
+          lightboxNext.addEventListener("click", (event) => {
+            event.stopPropagation();
+            showImage((currentIndex + 1) % images.length);
+          });
+        }
 
         thumbs.forEach((thumb) => {
           thumb.addEventListener("click", () => {
@@ -273,6 +314,22 @@ const firstImage = target.images[0];
             showImage((currentIndex + 1) % images.length);
           });
         }
+
+        document.addEventListener("keydown", (event) => {
+          const isOpen = lightbox?.classList.contains("open");
+
+          if (event.key === "Escape") {
+            closeLightbox();
+          }
+
+          if (isOpen && event.key === "ArrowLeft") {
+            showImage((currentIndex - 1 + images.length) % images.length);
+          }
+
+          if (isOpen && event.key === "ArrowRight") {
+            showImage((currentIndex + 1) % images.length);
+          }
+        });
 
         updateActiveThumb();
       </script>
@@ -361,6 +418,13 @@ const firstImage = target.images[0];
     font-size: 18px;
   }
 
+  #counter {
+    color: #c7d2ea;
+    font-size: 14px;
+    min-width: 60px;
+    text-align: center;
+  }
+
   .thumbnails {
     display: flex;
     gap: 8px;
@@ -378,6 +442,11 @@ const firstImage = target.images[0];
     opacity: 0.65;
     border: 2px solid transparent;
     flex: 0 0 auto;
+    background: black;
+  }
+
+  .thumb:hover {
+    opacity: 1;
   }
 
   .thumb.active {
@@ -426,6 +495,11 @@ const firstImage = target.images[0];
     color: #9db7ff;
     font-size: 13px;
     margin-bottom: 6px;
+  }
+
+  .info-card strong {
+    color: #ffffff;
+    font-size: 15px;
   }
 
   .extra,
@@ -526,5 +600,53 @@ const firstImage = target.images[0];
     cursor: pointer;
     font-size: 28px;
     line-height: 1;
+  }
+
+  .lightbox-nav {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(18, 24, 39, 0.9);
+    color: white;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    width: 48px;
+    height: 48px;
+    cursor: pointer;
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .lightbox-prev {
+    left: 24px;
+  }
+
+  .lightbox-next {
+    right: 24px;
+  }
+
+  .lightbox-nav:hover,
+  .lightbox-close:hover {
+    background: #1c2540;
+  }
+
+  @media (max-width: 640px) {
+    h1 {
+      font-size: 30px;
+    }
+
+    .lightbox-nav {
+      width: 42px;
+      height: 42px;
+      font-size: 24px;
+    }
+
+    .lightbox-prev {
+      left: 10px;
+    }
+
+    .lightbox-next {
+      right: 10px;
+    }
   }
 </style>
