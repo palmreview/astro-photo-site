@@ -173,6 +173,12 @@ const firstImage = target.images[0];
           ×
         </button>
 
+        <div class="zoom-controls">
+          <button id="zoomOutBtn" type="button" aria-label="Zoom out">−</button>
+          <button id="zoomResetBtn" type="button" aria-label="Reset zoom">Reset</button>
+          <button id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
+        </div>
+
         {target.images.length > 1 && (
           <button
             id="lightboxPrev"
@@ -184,7 +190,9 @@ const firstImage = target.images[0];
           </button>
         )}
 
-        <img id="lightboxImage" src={firstImage.url} alt={firstImage.label} />
+        <div class="lightbox-image-wrap">
+          <img id="lightboxImage" src={firstImage.url} alt={firstImage.label} />
+        </div>
 
         {target.images.length > 1 && (
           <button
@@ -214,6 +222,7 @@ const firstImage = target.images[0];
     {target.images.length > 0 && (
       <script define:vars={{ images: target.images }}>
         let currentIndex = 0;
+        let zoomLevel = 1;
 
         const mainImage = document.getElementById("mainImage");
         const imageLabel = document.getElementById("imageLabel");
@@ -230,6 +239,31 @@ const firstImage = target.images[0];
         const lightboxNext = document.getElementById("lightboxNext");
         const fullResolutionLink = document.getElementById("fullResolutionLink");
 
+        const zoomInBtn = document.getElementById("zoomInBtn");
+        const zoomOutBtn = document.getElementById("zoomOutBtn");
+        const zoomResetBtn = document.getElementById("zoomResetBtn");
+
+        function updateZoom() {
+          if (!lightboxImage) return;
+          lightboxImage.style.transform = `scale(${zoomLevel})`;
+          lightboxImage.style.cursor = zoomLevel > 1 ? "zoom-out" : "zoom-in";
+        }
+
+        function zoomIn() {
+          zoomLevel = Math.min(zoomLevel + 0.25, 4);
+          updateZoom();
+        }
+
+        function zoomOut() {
+          zoomLevel = Math.max(zoomLevel - 0.25, 1);
+          updateZoom();
+        }
+
+        function resetZoom() {
+          zoomLevel = 1;
+          updateZoom();
+        }
+
         function updateActiveThumb() {
           thumbs.forEach((thumb) => thumb.classList.remove("active"));
 
@@ -240,6 +274,7 @@ const firstImage = target.images[0];
 
         function showImage(index) {
           currentIndex = index;
+          resetZoom();
 
           mainImage.src = images[currentIndex].url;
           mainImage.alt = images[currentIndex].label;
@@ -271,6 +306,7 @@ const firstImage = target.images[0];
         function openLightbox() {
           if (!lightbox) return;
 
+          resetZoom();
           lightbox.classList.add("open");
           lightbox.setAttribute("aria-hidden", "false");
           document.body.classList.add("lightbox-open");
@@ -279,12 +315,44 @@ const firstImage = target.images[0];
         function closeLightbox() {
           if (!lightbox) return;
 
+          resetZoom();
           lightbox.classList.remove("open");
           lightbox.setAttribute("aria-hidden", "true");
           document.body.classList.remove("lightbox-open");
         }
 
         mainImage.addEventListener("click", openLightbox);
+
+        if (lightboxImage) {
+          lightboxImage.addEventListener("click", () => {
+            if (zoomLevel === 1) {
+              zoomIn();
+            } else {
+              resetZoom();
+            }
+          });
+        }
+
+        if (zoomInBtn) {
+          zoomInBtn.addEventListener("click", (event) => {
+            event.stopPropagation();
+            zoomIn();
+          });
+        }
+
+        if (zoomOutBtn) {
+          zoomOutBtn.addEventListener("click", (event) => {
+            event.stopPropagation();
+            zoomOut();
+          });
+        }
+
+        if (zoomResetBtn) {
+          zoomResetBtn.addEventListener("click", (event) => {
+            event.stopPropagation();
+            resetZoom();
+          });
+        }
 
         if (lightboxClose) {
           lightboxClose.addEventListener("click", closeLightbox);
@@ -342,9 +410,22 @@ const firstImage = target.images[0];
           if (isOpen && event.key === "ArrowRight") {
             showImage((currentIndex + 1) % images.length);
           }
+
+          if (isOpen && (event.key === "+" || event.key === "=")) {
+            zoomIn();
+          }
+
+          if (isOpen && event.key === "-") {
+            zoomOut();
+          }
+
+          if (isOpen && event.key === "0") {
+            resetZoom();
+          }
         });
 
         updateActiveThumb();
+        updateZoom();
       </script>
     )}
   </body>
@@ -586,11 +667,22 @@ const firstImage = target.images[0];
     display: flex;
   }
 
+  .lightbox-image-wrap {
+    max-width: 96vw;
+    max-height: 78vh;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .lightbox img {
     max-width: 96vw;
-    max-height: 82vh;
+    max-height: 78vh;
     object-fit: contain;
     border-radius: 10px;
+    transition: transform 0.15s ease;
+    transform-origin: center center;
   }
 
   .lightbox-label {
@@ -628,6 +720,29 @@ const firstImage = target.images[0];
     cursor: pointer;
     font-size: 28px;
     line-height: 1;
+  }
+
+  .zoom-controls {
+    position: fixed;
+    top: 18px;
+    left: 22px;
+    display: flex;
+    gap: 8px;
+    z-index: 10000;
+  }
+
+  .zoom-controls button {
+    background: rgba(18, 24, 39, 0.9);
+    color: white;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .zoom-controls button:hover {
+    background: #1c2540;
   }
 
   .lightbox-nav {
@@ -675,6 +790,16 @@ const firstImage = target.images[0];
 
     .lightbox-next {
       right: 10px;
+    }
+
+    .zoom-controls {
+      left: 10px;
+      top: 12px;
+    }
+
+    .zoom-controls button {
+      padding: 7px 10px;
+      font-size: 13px;
     }
   }
 </style>
