@@ -30,9 +30,9 @@
     "location": "Florida"
   },
   {
-    "slug": "m3",
-    "name": "Messier 3",
-    "catalog": "M3",
+    "slug": "m13",
+    "name": "Messier 13",
+    "catalog": "M13",
     "category": "Deep Sky",
     "folder": "deep-sky/M 3/",
     "shortDescription": "A dense ball of ancient stars.",
