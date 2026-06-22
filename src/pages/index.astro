@@ -1,6 +1,7 @@
 ---
-import targetsData from "../data/targets.json";
-import { getImagesForFolder } from "../lib/r2-images.js";
+import { getDiscoveredTargets, getImagesForFolder } from "../lib/r2-images.js";
+
+const targetsData = await getDiscoveredTargets();
 
 const targets = await Promise.all(
   targetsData.map(async (target) => {
@@ -29,6 +30,9 @@ const targets = await Promise.all(
         <h1>Andrew's Astro Photos</h1>
         <p>
           A simple, beginner-friendly collection of space photos captured while learning the night sky.
+        </p>
+        <p>
+          <a class="admin-link" href="/admin/">Admin</a>
         </p>
       </section>
 
@@ -97,6 +101,16 @@ const targets = await Promise.all(
     font-size: 18px;
     max-width: 720px;
     line-height: 1.5;
+  }
+
+  .admin-link {
+    color: white;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    padding: 8px 14px;
+    text-decoration: none;
+    background: rgba(18, 24, 39, 0.75);
+    font-size: 14px;
   }
 
   .grid {

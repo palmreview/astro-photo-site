@@ -1,4 +1,4 @@
-import { S3Client, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3";
 
 function getEnv(name) {
   return import.meta.env?.[name] || process.env[name];
@@ -36,7 +36,6 @@ function hasExtension(key, extensions) {
 
 function makeLabelFromFilename(key) {
   const filename = key.split("/").pop() || key;
-
   return filename
     .replace(/\.[^/.]+$/, "")
     .replace(/[-_]/g, " ")
@@ -44,41 +43,74 @@ function makeLabelFromFilename(key) {
 }
 
 function makeFileType(key) {
-  const ext = key.split(".").pop()?.toUpperCase() || "FILE";
-  return ext;
+  return key.split(".").pop()?.toUpperCase() || "FILE";
 }
 
 function makePublicUrl(key) {
   return `${publicBaseUrl.replace(/\/$/, "")}/${key}`;
 }
 
+function makeSlug(text) {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function makeNameFromFolder(folder) {
+  return folder.split("/").filter(Boolean).pop() || folder;
+}
+
 function sortImages(images) {
   return images.sort((a, b) => {
-    const aName = a.key.toLowerCase();
-    const bName = b.key.toLowerCase();
-
     const score = (name) => {
-      if (name.includes("main")) return 1;
-      if (name.includes("processed")) return 2;
-      if (name.includes("final")) return 3;
-      if (name.includes("detail")) return 4;
-      if (name.includes("raw")) return 9;
+      const lower = name.toLowerCase();
+      if (lower.includes("main")) return 1;
+      if (lower.includes("processed")) return 2;
+      if (lower.includes("final")) return 3;
+      if (lower.includes("detail")) return 4;
+      if (lower.includes("raw")) return 9;
       return 5;
     };
 
-    return score(aName) - score(bName) || aName.localeCompare(bName);
+    return score(a.key) - score(b.key) || a.key.localeCompare(b.key);
   });
 }
 
-async function listObjects(prefix) {
-  const response = await r2.send(
-    new ListObjectsV2Command({
-      Bucket: bucketName,
-      Prefix: prefix
-    })
-  );
+async function listObjects(prefix = "") {
+  let token;
+  const allObjects = [];
 
-  return response.Contents || [];
+  do {
+    const response = await r2.send(
+      new ListObjectsV2Command({
+        Bucket: bucketName,
+        Prefix: prefix,
+        ContinuationToken: token
+      })
+    );
+
+    allObjects.push(...(response.Contents || []));
+    token = response.NextContinuationToken;
+  } while (token);
+
+  return allObjects;
+}
+
+async function getJson(key) {
+  try {
+    const response = await r2.send(
+      new GetObjectCommand({
+        Bucket: bucketName,
+        Key: key
+      })
+    );
+
+    const text = await response.Body.transformToString();
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 export async function getImagesForFolder(folder) {
@@ -87,6 +119,7 @@ export async function getImagesForFolder(folder) {
   const images = objects
     .filter((object) => object.Key && hasExtension(object.Key, imageExtensions))
     .filter((object) => !object.Key.includes("/Raw/"))
+    .filter((object) => !object.Key.startsWith("_hidden/"))
     .map((object) => ({
       key: object.Key,
       url: makePublicUrl(object.Key),
@@ -109,4 +142,63 @@ export async function getDownloadsForFolder(folder) {
       type: makeFileType(object.Key)
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export async function getDiscoveredTargets() {
+  const objects = await listObjects("");
+
+  const folders = new Set();
+
+  for (const object of objects) {
+    const key = object.Key;
+    if (!key) continue;
+    if (key.startsWith("_hidden/")) continue;
+    if (key.includes("/Raw/")) continue;
+    if (!hasExtension(key, imageExtensions)) continue;
+
+    const parts = key.split("/");
+    if (parts.length < 3) continue;
+
+    folders.add(`${parts[0]}/${parts[1]}`);
+  }
+
+  const targets = await Promise.all(
+    [...folders].map(async (folder) => {
+      const info = await getJson(`${folder}/info.json`);
+      const folderName = makeNameFromFolder(folder);
+      const category = folder.startsWith("solar-system/")
+        ? "Solar System"
+        : "Deep Sky";
+
+      return {
+        slug: info?.slug || makeSlug(folderName),
+        name: info?.name || folderName,
+        catalog: info?.catalog || "",
+        category: info?.category || category,
+        folder,
+        shortDescription:
+          info?.shortDescription ||
+          info?.description ||
+          "A space photo from Andrew's astrophotography collection.",
+        description:
+          info?.description ||
+          "This target was automatically discovered from the image folder in Cloudflare R2.",
+        distance: info?.distance,
+        dateCaptured: info?.dateCaptured,
+        equipment: info?.equipment,
+        location: info?.location,
+        whatYouAreSeeing:
+          info?.whatYouAreSeeing ||
+          "This image shows a real object in space captured through a smart telescope.",
+        whyItIsInteresting:
+          info?.whyItIsInteresting ||
+          "It is part of a growing beginner-friendly astrophotography gallery.",
+        captureNotes:
+          info?.captureNotes ||
+          "Uploaded through the site admin tools."
+      };
+    })
+  );
+
+  return targets.sort((a, b) => a.name.localeCompare(b.name));
 }
