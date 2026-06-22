@@ -37,18 +37,19 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           <input id="file" type="file" accept="image/*" />
         </label>
 
-        <button id="uploadBtn" type="button">Upload</button>
+        <img id="preview" class="preview" alt="Upload preview" />
+
+        <div class="button-row">
+          <button id="uploadBtn" type="button">Upload</button>
+          <button id="listBtn" type="button">List files in folder</button>
+        </div>
       </section>
 
       <section class="panel">
-        <h2>Hide photo</h2>
-
-        <label>
-          R2 file key
-          <input id="hideKey" type="text" placeholder="deep-sky/M 81/old-photo.jpg" />
-        </label>
-
-        <button id="hideBtn" type="button">Hide photo</button>
+        <h2>Files in folder</h2>
+        <div id="fileList" class="file-list">
+          <p class="muted">Enter a folder and click “List files in folder.”</p>
+        </div>
       </section>
 
       <pre id="result">Ready.</pre>
@@ -57,7 +58,10 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     <script define:vars={{ adminApiUrl }}>
       const result = document.getElementById("result");
       const uploadBtn = document.getElementById("uploadBtn");
-      const hideBtn = document.getElementById("hideBtn");
+      const listBtn = document.getElementById("listBtn");
+      const fileInput = document.getElementById("file");
+      const preview = document.getElementById("preview");
+      const fileList = document.getElementById("fileList");
 
       function show(message) {
         result.textContent =
@@ -68,9 +72,12 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         return document.getElementById("token").value.trim();
       }
 
+      function getFolder() {
+        return document.getElementById("folder").value.trim().replace(/\/$/, "");
+      }
+
       async function readResponse(response) {
         const text = await response.text();
-
         try {
           return JSON.parse(text);
         } catch {
@@ -82,14 +89,138 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         }
       }
 
-      uploadBtn.addEventListener("click", async () => {
+      fileInput.addEventListener("change", () => {
+        const file = fileInput.files[0];
+
+        if (!file) {
+          preview.style.display = "none";
+          preview.src = "";
+          return;
+        }
+
+        preview.src = URL.createObjectURL(file);
+        preview.style.display = "block";
+      });
+
+      async function listFiles() {
         const token = getToken();
-        const folder = document.getElementById("folder").value.trim().replace(/\/$/, "");
-        const filename = document.getElementById("filename").value.trim();
-        const file = document.getElementById("file").files[0];
+        const folder = getFolder();
 
         if (!adminApiUrl) {
-          show("Missing PUBLIC_ADMIN_API_URL. Add it in Cloudflare Pages environment variables and redeploy.");
+          show("Missing PUBLIC_ADMIN_API_URL.");
+          return;
+        }
+
+        if (!token) {
+          show("Please enter your admin token.");
+          return;
+        }
+
+        if (!folder) {
+          show("Please enter a folder.");
+          return;
+        }
+
+        try {
+          listBtn.disabled = true;
+          listBtn.textContent = "Listing...";
+          show(`Listing files in ${folder}...`);
+
+          const response = await fetch(
+            `${adminApiUrl}/list?folder=${encodeURIComponent(folder)}`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            }
+          );
+
+          const data = await readResponse(response);
+
+          if (!response.ok) {
+            show({ ok: false, message: "List failed", status: response.status, details: data });
+            return;
+          }
+
+          renderFileList(data.files || []);
+          show(data);
+        } catch (error) {
+          show(`List failed: ${error.message}`);
+        } finally {
+          listBtn.disabled = false;
+          listBtn.textContent = "List files in folder";
+        }
+      }
+
+      function renderFileList(files) {
+        if (!files.length) {
+          fileList.innerHTML = `<p class="muted">No image files found in this folder.</p>`;
+          return;
+        }
+
+        fileList.innerHTML = files
+          .map(
+            (file) => `
+              <div class="file-card">
+                <img src="${file.url}" alt="${file.filename}" />
+                <div class="file-info">
+                  <strong>${file.filename}</strong>
+                  <code>${file.key}</code>
+                  <a href="${file.url}" target="_blank" rel="noopener noreferrer">View full image</a>
+                </div>
+                <button class="hide-file-btn" data-key="${file.key}" type="button">Hide</button>
+              </div>
+            `
+          )
+          .join("");
+
+        document.querySelectorAll(".hide-file-btn").forEach((button) => {
+          button.addEventListener("click", async () => {
+            await hideFile(button.dataset.key);
+            await listFiles();
+          });
+        });
+      }
+
+      async function hideFile(key) {
+        const token = getToken();
+
+        if (!confirm(`Hide this file?\n\n${key}`)) return;
+
+        try {
+          show(`Hiding ${key}...`);
+
+          const response = await fetch(`${adminApiUrl}/hide`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ key })
+          });
+
+          const data = await readResponse(response);
+
+          if (!response.ok) {
+            show({ ok: false, message: "Hide failed", status: response.status, details: data });
+            return;
+          }
+
+          show(data);
+        } catch (error) {
+          show(`Hide failed: ${error.message}`);
+        }
+      }
+
+      uploadBtn.addEventListener("click", async () => {
+        const token = getToken();
+        const folder = getFolder();
+        const filename = document.getElementById("filename").value.trim();
+        const file = fileInput.files[0];
+
+        if (!adminApiUrl) {
+          show("Missing PUBLIC_ADMIN_API_URL.");
           return;
         }
 
@@ -122,16 +253,12 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           const data = await readResponse(response);
 
           if (!response.ok) {
-            show({
-              ok: false,
-              message: "Upload failed",
-              status: response.status,
-              details: data
-            });
+            show({ ok: false, message: "Upload failed", status: response.status, details: data });
             return;
           }
 
           show(data);
+          await listFiles();
         } catch (error) {
           show(`Upload failed: ${error.message}`);
         } finally {
@@ -140,59 +267,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         }
       });
 
-      hideBtn.addEventListener("click", async () => {
-        const token = getToken();
-        const key = document.getElementById("hideKey").value.trim();
-
-        if (!adminApiUrl) {
-          show("Missing PUBLIC_ADMIN_API_URL. Add it in Cloudflare Pages environment variables and redeploy.");
-          return;
-        }
-
-        if (!token) {
-          show("Please enter your admin token.");
-          return;
-        }
-
-        if (!key) {
-          show("Please enter the R2 file key to hide.");
-          return;
-        }
-
-        try {
-          hideBtn.disabled = true;
-          hideBtn.textContent = "Hiding...";
-          show(`Hiding ${key}...`);
-
-          const response = await fetch(`${adminApiUrl}/hide`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ key })
-          });
-
-          const data = await readResponse(response);
-
-          if (!response.ok) {
-            show({
-              ok: false,
-              message: "Hide failed",
-              status: response.status,
-              details: data
-            });
-            return;
-          }
-
-          show(data);
-        } catch (error) {
-          show(`Hide failed: ${error.message}`);
-        } finally {
-          hideBtn.disabled = false;
-          hideBtn.textContent = "Hide photo";
-        }
-      });
+      listBtn.addEventListener("click", listFiles);
     </script>
   </body>
 </html>
@@ -206,7 +281,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   }
 
   main {
-    max-width: 760px;
+    max-width: 900px;
     margin: 0 auto;
     padding: 32px 20px;
   }
@@ -238,6 +313,12 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     color: white;
   }
 
+  .button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
   button {
     padding: 12px 16px;
     border-radius: 999px;
@@ -252,11 +333,73 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     cursor: wait;
   }
 
+  .preview {
+    display: none;
+    max-width: 260px;
+    max-height: 260px;
+    object-fit: contain;
+    background: black;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    border: 1px solid rgba(125, 162, 255, 0.25);
+  }
+
+  .file-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .file-card {
+    display: grid;
+    grid-template-columns: 90px 1fr auto;
+    gap: 14px;
+    align-items: center;
+    background: rgba(5, 7, 13, 0.65);
+    border: 1px solid rgba(125, 162, 255, 0.18);
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  .file-card img {
+    width: 90px;
+    height: 70px;
+    object-fit: cover;
+    background: black;
+    border-radius: 8px;
+  }
+
+  .file-info {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .file-info code {
+    color: #c7d2ea;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .muted {
+    color: #9db7ff;
+  }
+
   pre {
     white-space: pre-wrap;
     background: #000;
     padding: 16px;
     border-radius: 12px;
     color: #9db7ff;
+  }
+
+  @media (max-width: 640px) {
+    .file-card {
+      grid-template-columns: 1fr;
+    }
+
+    .file-card img {
+      width: 100%;
+      height: 180px;
+    }
   }
 </style>
