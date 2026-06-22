@@ -37,7 +37,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           <input id="file" type="file" accept="image/*" />
         </label>
 
-        <button id="uploadBtn">Upload</button>
+        <button id="uploadBtn" type="button">Upload</button>
       </section>
 
       <section class="panel">
@@ -48,14 +48,16 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           <input id="hideKey" type="text" placeholder="deep-sky/M 81/old-photo.jpg" />
         </label>
 
-        <button id="hideBtn">Hide photo</button>
+        <button id="hideBtn" type="button">Hide photo</button>
       </section>
 
-      <pre id="result"></pre>
+      <pre id="result">Ready.</pre>
     </main>
 
     <script define:vars={{ adminApiUrl }}>
       const result = document.getElementById("result");
+      const uploadBtn = document.getElementById("uploadBtn");
+      const hideBtn = document.getElementById("hideBtn");
 
       function show(message) {
         result.textContent =
@@ -66,10 +68,35 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         return document.getElementById("token").value.trim();
       }
 
-      document.getElementById("uploadBtn").addEventListener("click", async () => {
+      async function readResponse(response) {
+        const text = await response.text();
+
+        try {
+          return JSON.parse(text);
+        } catch {
+          return {
+            ok: response.ok,
+            status: response.status,
+            responseText: text || "No response body"
+          };
+        }
+      }
+
+      uploadBtn.addEventListener("click", async () => {
+        const token = getToken();
         const folder = document.getElementById("folder").value.trim().replace(/\/$/, "");
         const filename = document.getElementById("filename").value.trim();
         const file = document.getElementById("file").files[0];
+
+        if (!adminApiUrl) {
+          show("Missing PUBLIC_ADMIN_API_URL. Add it in Cloudflare Pages environment variables and redeploy.");
+          return;
+        }
+
+        if (!token) {
+          show("Please enter your admin token.");
+          return;
+        }
 
         if (!folder || !filename || !file) {
           show("Please enter folder, filename, and choose a file.");
@@ -78,36 +105,93 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
         const key = `${folder}/${filename}`;
 
-        const response = await fetch(`${adminApiUrl}/upload?key=${encodeURIComponent(key)}`, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${getToken()}`,
-            "Content-Type": file.type || "application/octet-stream"
-          },
-          body: file
-        });
+        try {
+          uploadBtn.disabled = true;
+          uploadBtn.textContent = "Uploading...";
+          show(`Uploading ${key}...`);
 
-        show(await response.json());
+          const response = await fetch(`${adminApiUrl}/upload?key=${encodeURIComponent(key)}`, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": file.type || "application/octet-stream"
+            },
+            body: file
+          });
+
+          const data = await readResponse(response);
+
+          if (!response.ok) {
+            show({
+              ok: false,
+              message: "Upload failed",
+              status: response.status,
+              details: data
+            });
+            return;
+          }
+
+          show(data);
+        } catch (error) {
+          show(`Upload failed: ${error.message}`);
+        } finally {
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = "Upload";
+        }
       });
 
-      document.getElementById("hideBtn").addEventListener("click", async () => {
+      hideBtn.addEventListener("click", async () => {
+        const token = getToken();
         const key = document.getElementById("hideKey").value.trim();
+
+        if (!adminApiUrl) {
+          show("Missing PUBLIC_ADMIN_API_URL. Add it in Cloudflare Pages environment variables and redeploy.");
+          return;
+        }
+
+        if (!token) {
+          show("Please enter your admin token.");
+          return;
+        }
 
         if (!key) {
           show("Please enter the R2 file key to hide.");
           return;
         }
 
-        const response = await fetch(`${adminApiUrl}/hide`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${getToken()}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ key })
-        });
+        try {
+          hideBtn.disabled = true;
+          hideBtn.textContent = "Hiding...";
+          show(`Hiding ${key}...`);
 
-        show(await response.json());
+          const response = await fetch(`${adminApiUrl}/hide`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ key })
+          });
+
+          const data = await readResponse(response);
+
+          if (!response.ok) {
+            show({
+              ok: false,
+              message: "Hide failed",
+              status: response.status,
+              details: data
+            });
+            return;
+          }
+
+          show(data);
+        } catch (error) {
+          show(`Hide failed: ${error.message}`);
+        } finally {
+          hideBtn.disabled = false;
+          hideBtn.textContent = "Hide photo";
+        }
       });
     </script>
   </body>
@@ -161,6 +245,11 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     background: #1c2540;
     color: white;
     cursor: pointer;
+  }
+
+  button:disabled {
+    opacity: 0.55;
+    cursor: wait;
   }
 
   pre {
