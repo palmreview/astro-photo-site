@@ -28,5 +28,242 @@ export async function getStaticPaths() {
 }
 
 const { target } = Astro.props;
-const firstImage = target.images[0];
+const firstImage = target.images?.[0];
 ---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{target.name} | Andrew's Astro Photos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+
+  <body>
+    <main>
+      <a class="back" href="/">← Back to gallery</a>
+
+      <article class="target">
+        <div class="image-panel">
+          {firstImage ? (
+            <>
+              <img id="mainImage" src={firstImage.url} alt={target.name} />
+              <p class="image-label">{firstImage.label}</p>
+            </>
+          ) : (
+            <div class="missing-image">No photos found.</div>
+          )}
+        </div>
+
+        <div class="content">
+          <p class="category">{target.category}</p>
+
+          <h1>
+            {target.catalog ? `${target.catalog}: ${target.name}` : target.name}
+          </h1>
+
+          <p class="description">{target.description}</p>
+
+          <section class="info-grid">
+            {target.distance && <div class="info-card"><span>Distance</span><strong>{target.distance}</strong></div>}
+            {target.dateCaptured && <div class="info-card"><span>Date captured</span><strong>{target.dateCaptured}</strong></div>}
+            {target.equipment && <div class="info-card"><span>Equipment</span><strong>{target.equipment}</strong></div>}
+            {target.location && <div class="info-card"><span>Location</span><strong>{target.location}</strong></div>}
+          </section>
+
+          {target.whatYouAreSeeing && (
+            <section class="extra">
+              <h2>What you're looking at</h2>
+              <p>{target.whatYouAreSeeing}</p>
+            </section>
+          )}
+
+          {target.whyItIsInteresting && (
+            <section class="extra">
+              <h2>Why it is interesting</h2>
+              <p>{target.whyItIsInteresting}</p>
+            </section>
+          )}
+
+          {target.captureNotes && (
+            <section class="extra">
+              <h2>How I captured it</h2>
+              <p>{target.captureNotes}</p>
+            </section>
+          )}
+
+          {target.downloads?.length > 0 && (
+            <section class="downloads">
+              <h2>Download raw files</h2>
+              <div class="download-list">
+                {target.downloads.map((file) => (
+                  <a class="download-card" href={file.url} download>
+                    <div>
+                      <strong>{file.label}</strong>
+                      <span>{file.type} file</span>
+                    </div>
+                    <span class="download-button">Download</span>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      </article>
+    </main>
+  </body>
+</html>
+
+<style>
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: radial-gradient(circle at top, #0c1222, #05070d);
+    color: white;
+  }
+
+  main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 32px 20px 48px;
+  }
+
+  .back {
+    color: #9db7ff;
+    text-decoration: none;
+    display: inline-block;
+    margin-bottom: 24px;
+  }
+
+  .target {
+    background: rgba(18, 24, 39, 0.75);
+    border: 1px solid rgba(125, 162, 255, 0.22);
+    border-radius: 22px;
+    overflow: hidden;
+  }
+
+  .image-panel {
+    background: black;
+  }
+
+  #mainImage {
+    width: 100%;
+    max-height: 650px;
+    object-fit: contain;
+    display: block;
+  }
+
+  .missing-image {
+    min-height: 260px;
+    display: grid;
+    place-items: center;
+    color: #9db7ff;
+    padding: 24px;
+    text-align: center;
+  }
+
+  .image-label {
+    text-align: center;
+    font-size: 14px;
+    color: #c7d2ea;
+    margin: 0;
+    padding: 10px 12px 12px;
+    background: #05070d;
+  }
+
+  .content {
+    padding: 26px;
+  }
+
+  .category {
+    color: #9db7ff;
+    font-size: 14px;
+    margin: 0 0 10px;
+  }
+
+  h1 {
+    font-size: 38px;
+    margin: 0 0 18px;
+  }
+
+  .description {
+    color: #d8deee;
+    font-size: 18px;
+    line-height: 1.65;
+    margin-bottom: 26px;
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+
+  .info-card {
+    background: rgba(5, 7, 13, 0.55);
+    border: 1px solid rgba(125, 162, 255, 0.18);
+    border-radius: 14px;
+    padding: 14px;
+  }
+
+  .info-card span {
+    display: block;
+    color: #9db7ff;
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  .info-card strong {
+    color: white;
+    font-size: 15px;
+  }
+
+  .extra,
+  .downloads {
+    border-top: 1px solid rgba(125, 162, 255, 0.2);
+    padding-top: 22px;
+    margin-top: 22px;
+  }
+
+  .extra h2,
+  .downloads h2 {
+    font-size: 22px;
+    margin-bottom: 10px;
+  }
+
+  .extra p {
+    color: #c7d2ea;
+    line-height: 1.6;
+  }
+
+  .download-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .download-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    background: rgba(5, 7, 13, 0.55);
+    border: 1px solid rgba(125, 162, 255, 0.18);
+    border-radius: 14px;
+    padding: 14px;
+    color: white;
+    text-decoration: none;
+  }
+
+  .download-card span {
+    color: #9db7ff;
+    font-size: 14px;
+  }
+
+  .download-button {
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+</style>
