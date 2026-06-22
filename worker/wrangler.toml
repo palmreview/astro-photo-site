@@ -1,0 +1,7 @@
+name = "astro-photo-admin"
+main = "index.js"
+compatibility_date = "2026-06-22"
+
+[[r2_buckets]]
+binding = "ASTRO_PHOTO_BUCKET"
+bucket_name = "astro-photo"
