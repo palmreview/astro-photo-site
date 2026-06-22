@@ -46,11 +46,42 @@ const firstImage = target.images?.[0];
         <div class="image-panel">
           {firstImage ? (
             <>
-              <img id="mainImage" src={firstImage.url} alt={target.name} />
-              <p class="image-label">{firstImage.label}</p>
+              <img
+                id="mainImage"
+                src={firstImage.url}
+                alt={target.name}
+                title="Click thumbnail below or use arrows"
+              />
+
+              <p id="imageLabel" class="image-label">
+                {firstImage.label}
+              </p>
+
+              {target.images.length > 1 && (
+                <>
+                  <div class="controls">
+                    <button id="prevBtn" type="button">←</button>
+                    <span id="counter">1 / {target.images.length}</span>
+                    <button id="nextBtn" type="button">→</button>
+                  </div>
+
+                  <div class="thumbnails">
+                    {target.images.map((img, i) => (
+                      <img
+                        src={img.url}
+                        alt={img.label}
+                        class={`thumb ${i === 0 ? "active" : ""}`}
+                        data-index={i}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           ) : (
-            <div class="missing-image">No photos found.</div>
+            <div class="missing-image">
+              No photos found in this Cloudflare folder yet.
+            </div>
           )}
         </div>
 
@@ -64,10 +95,33 @@ const firstImage = target.images?.[0];
           <p class="description">{target.description}</p>
 
           <section class="info-grid">
-            {target.distance && <div class="info-card"><span>Distance</span><strong>{target.distance}</strong></div>}
-            {target.dateCaptured && <div class="info-card"><span>Date captured</span><strong>{target.dateCaptured}</strong></div>}
-            {target.equipment && <div class="info-card"><span>Equipment</span><strong>{target.equipment}</strong></div>}
-            {target.location && <div class="info-card"><span>Location</span><strong>{target.location}</strong></div>}
+            {target.distance && (
+              <div class="info-card">
+                <span>Distance</span>
+                <strong>{target.distance}</strong>
+              </div>
+            )}
+
+            {target.dateCaptured && (
+              <div class="info-card">
+                <span>Date captured</span>
+                <strong>{target.dateCaptured}</strong>
+              </div>
+            )}
+
+            {target.equipment && (
+              <div class="info-card">
+                <span>Equipment</span>
+                <strong>{target.equipment}</strong>
+              </div>
+            )}
+
+            {target.location && (
+              <div class="info-card">
+                <span>Location</span>
+                <strong>{target.location}</strong>
+              </div>
+            )}
           </section>
 
           {target.whatYouAreSeeing && (
@@ -94,6 +148,11 @@ const firstImage = target.images?.[0];
           {target.downloads?.length > 0 && (
             <section class="downloads">
               <h2>Download raw files</h2>
+              <p>
+                Want to try processing this target yourself? Download the
+                original data files below.
+              </p>
+
               <div class="download-list">
                 {target.downloads.map((file) => (
                   <a class="download-card" href={file.url} download>
@@ -110,6 +169,72 @@ const firstImage = target.images?.[0];
         </div>
       </article>
     </main>
+
+    {target.images?.length > 0 && (
+      <script define:vars={{ images: target.images }}>
+        let currentIndex = 0;
+
+        const mainImage = document.getElementById("mainImage");
+        const imageLabel = document.getElementById("imageLabel");
+        const counter = document.getElementById("counter");
+        const prevBtn = document.getElementById("prevBtn");
+        const nextBtn = document.getElementById("nextBtn");
+        const thumbs = document.querySelectorAll(".thumb");
+
+        function updateActiveThumb() {
+          thumbs.forEach((thumb) => thumb.classList.remove("active"));
+
+          if (thumbs[currentIndex]) {
+            thumbs[currentIndex].classList.add("active");
+          }
+        }
+
+        function showImage(index) {
+          currentIndex = index;
+
+          mainImage.src = images[currentIndex].url;
+          mainImage.alt = images[currentIndex].label;
+
+          if (imageLabel) {
+            imageLabel.textContent = images[currentIndex].label;
+          }
+
+          if (counter) {
+            counter.textContent = `${currentIndex + 1} / ${images.length}`;
+          }
+
+          updateActiveThumb();
+        }
+
+        thumbs.forEach((thumb) => {
+          thumb.addEventListener("click", () => {
+            showImage(Number(thumb.dataset.index));
+          });
+        });
+
+        if (prevBtn && nextBtn) {
+          prevBtn.addEventListener("click", () => {
+            showImage((currentIndex - 1 + images.length) % images.length);
+          });
+
+          nextBtn.addEventListener("click", () => {
+            showImage((currentIndex + 1) % images.length);
+          });
+        }
+
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowLeft") {
+            showImage((currentIndex - 1 + images.length) % images.length);
+          }
+
+          if (event.key === "ArrowRight") {
+            showImage((currentIndex + 1) % images.length);
+          }
+        });
+
+        updateActiveThumb();
+      </script>
+    )}
   </body>
 </html>
 
@@ -150,6 +275,7 @@ const firstImage = target.images?.[0];
     max-height: 650px;
     object-fit: contain;
     display: block;
+    background: black;
   }
 
   .missing-image {
@@ -168,6 +294,61 @@ const firstImage = target.images?.[0];
     margin: 0;
     padding: 10px 12px 12px;
     background: #05070d;
+  }
+
+  .controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    background: #05070d;
+  }
+
+  .controls button {
+    background: #121827;
+    color: white;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    padding: 9px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 18px;
+  }
+
+  #counter {
+    color: #c7d2ea;
+    font-size: 14px;
+    min-width: 60px;
+    text-align: center;
+  }
+
+  .thumbnails {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    overflow-x: auto;
+    background: #05070d;
+  }
+
+  .thumb {
+    height: 64px;
+    width: 88px;
+    object-fit: cover;
+    border-radius: 8px;
+    cursor: pointer;
+    opacity: 0.65;
+    border: 2px solid transparent;
+    flex: 0 0 auto;
+    background: black;
+  }
+
+  .thumb:hover {
+    opacity: 1;
+  }
+
+  .thumb.active {
+    border-color: #7da2ff;
+    opacity: 1;
   }
 
   .content {
@@ -231,7 +412,8 @@ const firstImage = target.images?.[0];
     margin-bottom: 10px;
   }
 
-  .extra p {
+  .extra p,
+  .downloads p {
     color: #c7d2ea;
     line-height: 1.6;
   }
@@ -255,6 +437,11 @@ const firstImage = target.images?.[0];
     text-decoration: none;
   }
 
+  .download-card strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+
   .download-card span {
     color: #9db7ff;
     font-size: 14px;
@@ -265,5 +452,11 @@ const firstImage = target.images?.[0];
     border-radius: 999px;
     padding: 8px 12px;
     white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    h1 {
+      font-size: 30px;
+    }
   }
 </style>
