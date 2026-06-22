@@ -23,6 +23,10 @@ function isImageKey(key) {
   return /\.(jpg|jpeg|png|webp)$/i.test(key);
 }
 
+function makePublicUrl(env, key) {
+  return `${env.PUBLIC_R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
@@ -35,6 +39,32 @@ export default {
 
     const url = new URL(request.url);
 
+    if (url.pathname === "/list" && request.method === "GET") {
+      const folder = url.searchParams.get("folder")?.replace(/\/$/, "");
+
+      if (!folder) {
+        return json({ ok: false, error: "Missing folder" }, 400);
+      }
+
+      const listed = await env.ASTRO_PHOTO_BUCKET.list({
+        prefix: `${folder}/`
+      });
+
+      const files = listed.objects
+        .filter((object) => isImageKey(object.key))
+        .filter((object) => !object.key.includes("/Raw/"))
+        .map((object) => ({
+          key: object.key,
+          filename: object.key.split("/").pop(),
+          size: object.size,
+          uploaded: object.uploaded,
+          url: makePublicUrl(env, object.key)
+        }))
+        .sort((a, b) => a.filename.localeCompare(b.filename));
+
+      return json({ ok: true, folder, files });
+    }
+
     if (url.pathname === "/upload" && request.method === "PUT") {
       const key = url.searchParams.get("key");
 
@@ -43,16 +73,25 @@ export default {
       }
 
       if (!isImageKey(key)) {
-        return json({ ok: false, error: "Only jpg, jpeg, png, and webp are allowed" }, 400);
+        return json(
+          { ok: false, error: "Only jpg, jpeg, png, and webp are allowed" },
+          400
+        );
       }
 
       await env.ASTRO_PHOTO_BUCKET.put(key, request.body, {
         httpMetadata: {
-          contentType: request.headers.get("Content-Type") || "application/octet-stream"
+          contentType:
+            request.headers.get("Content-Type") || "application/octet-stream"
         }
       });
 
-      return json({ ok: true, action: "uploaded", key });
+      return json({
+        ok: true,
+        action: "uploaded",
+        key,
+        url: makePublicUrl(env, key)
+      });
     }
 
     if (url.pathname === "/hide" && request.method === "POST") {
@@ -64,7 +103,6 @@ export default {
       }
 
       const hiddenKey = `_hidden/${key}`;
-
       const object = await env.ASTRO_PHOTO_BUCKET.get(key);
 
       if (!object) {
@@ -82,6 +120,25 @@ export default {
         action: "hidden",
         originalKey: key,
         hiddenKey
+      });
+    }
+
+    if (url.pathname === "/redeploy" && request.method === "POST") {
+      if (!env.PAGES_DEPLOY_HOOK_URL) {
+        return json(
+          { ok: false, error: "Missing PAGES_DEPLOY_HOOK_URL" },
+          500
+        );
+      }
+
+      const response = await fetch(env.PAGES_DEPLOY_HOOK_URL, {
+        method: "POST"
+      });
+
+      return json({
+        ok: response.ok,
+        action: "redeploy_requested",
+        status: response.status
       });
     }
 

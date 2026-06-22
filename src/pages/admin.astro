@@ -42,6 +42,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         <div class="button-row">
           <button id="uploadBtn" type="button">Upload</button>
           <button id="listBtn" type="button">List files in folder</button>
+          <button id="redeployBtn" type="button">Redeploy Site</button>
         </div>
       </section>
 
@@ -59,6 +60,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       const result = document.getElementById("result");
       const uploadBtn = document.getElementById("uploadBtn");
       const listBtn = document.getElementById("listBtn");
+      const redeployBtn = document.getElementById("redeployBtn");
       const fileInput = document.getElementById("file");
       const preview = document.getElementById("preview");
       const fileList = document.getElementById("fileList");
@@ -78,6 +80,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
       async function readResponse(response) {
         const text = await response.text();
+
         try {
           return JSON.parse(text);
         } catch {
@@ -139,7 +142,12 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           const data = await readResponse(response);
 
           if (!response.ok) {
-            show({ ok: false, message: "List failed", status: response.status, details: data });
+            show({
+              ok: false,
+              message: "List failed",
+              status: response.status,
+              details: data
+            });
             return;
           }
 
@@ -155,7 +163,8 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
       function renderFileList(files) {
         if (!files.length) {
-          fileList.innerHTML = `<p class="muted">No image files found in this folder.</p>`;
+          fileList.innerHTML =
+            `<p class="muted">No image files found in this folder.</p>`;
           return;
         }
 
@@ -186,7 +195,9 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       async function hideFile(key) {
         const token = getToken();
 
-        if (!confirm(`Hide this file?\n\n${key}`)) return;
+        if (!confirm(`Hide this file?\n\n${key}`)) {
+          return;
+        }
 
         try {
           show(`Hiding ${key}...`);
@@ -203,7 +214,12 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           const data = await readResponse(response);
 
           if (!response.ok) {
-            show({ ok: false, message: "Hide failed", status: response.status, details: data });
+            show({
+              ok: false,
+              message: "Hide failed",
+              status: response.status,
+              details: data
+            });
             return;
           }
 
@@ -241,19 +257,27 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           uploadBtn.textContent = "Uploading...";
           show(`Uploading ${key}...`);
 
-          const response = await fetch(`${adminApiUrl}/upload?key=${encodeURIComponent(key)}`, {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": file.type || "application/octet-stream"
-            },
-            body: file
-          });
+          const response = await fetch(
+            `${adminApiUrl}/upload?key=${encodeURIComponent(key)}`,
+            {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": file.type || "application/octet-stream"
+              },
+              body: file
+            }
+          );
 
           const data = await readResponse(response);
 
           if (!response.ok) {
-            show({ ok: false, message: "Upload failed", status: response.status, details: data });
+            show({
+              ok: false,
+              message: "Upload failed",
+              status: response.status,
+              details: data
+            });
             return;
           }
 
@@ -264,6 +288,55 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         } finally {
           uploadBtn.disabled = false;
           uploadBtn.textContent = "Upload";
+        }
+      });
+
+      redeployBtn.addEventListener("click", async () => {
+        const token = getToken();
+
+        if (!adminApiUrl) {
+          show("Missing PUBLIC_ADMIN_API_URL.");
+          return;
+        }
+
+        if (!token) {
+          show("Please enter your admin token.");
+          return;
+        }
+
+        try {
+          redeployBtn.disabled = true;
+          redeployBtn.textContent = "Redeploying...";
+          show("Requesting site redeploy...");
+
+          const response = await fetch(`${adminApiUrl}/redeploy`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          });
+
+          const data = await readResponse(response);
+
+          if (!response.ok) {
+            show({
+              ok: false,
+              message: "Redeploy failed",
+              status: response.status,
+              details: data
+            });
+            return;
+          }
+
+          show({
+            ...data,
+            note: "Redeploy requested. Wait for Cloudflare Pages to finish, then refresh the public site."
+          });
+        } catch (error) {
+          show(`Redeploy failed: ${error.message}`);
+        } finally {
+          redeployBtn.disabled = false;
+          redeployBtn.textContent = "Redeploy Site";
         }
       });
 
