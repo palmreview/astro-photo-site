@@ -1,12 +1,16 @@
+function corsHeaders() {
+  return {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization"
+  };
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type,Authorization"
-    }
+    headers: corsHeaders()
   });
 }
 
@@ -27,6 +31,60 @@ function makePublicUrl(env, key) {
   return `${env.PUBLIC_R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
 }
 
+function cleanFolder(folder) {
+  return folder?.trim().replace(/\/$/, "");
+}
+
+async function readJsonObject(env, key, fallback = null) {
+  const object = await env.ASTRO_PHOTO_BUCKET.get(key);
+  if (!object) return fallback;
+
+  try {
+    return JSON.parse(await object.text());
+  } catch {
+    return fallback;
+  }
+}
+
+async function writeJsonObject(env, key, data) {
+  await env.ASTRO_PHOTO_BUCKET.put(JSON.stringify(data, null, 2), {
+    key
+  });
+}
+
+async function putJson(env, key, data) {
+  await env.ASTRO_PHOTO_BUCKET.put(key, JSON.stringify(data, null, 2), {
+    httpMetadata: {
+      contentType: "application/json"
+    }
+  });
+}
+
+async function getStatus(env) {
+  return await readJsonObject(env, "_admin/status.json", {
+    lastUploadAt: null,
+    lastUploadKey: null,
+    lastHideAt: null,
+    lastHideKey: null,
+    lastRedeployRequestedAt: null,
+    lastRedeployStatus: null,
+    lastInfoSaveAt: null,
+    lastInfoFolder: null
+  });
+}
+
+async function updateStatus(env, patch) {
+  const status = await getStatus(env);
+  const updated = {
+    ...status,
+    ...patch,
+    updatedAt: new Date().toISOString()
+  };
+
+  await putJson(env, "_admin/status.json", updated);
+  return updated;
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
@@ -39,8 +97,13 @@ export default {
 
     const url = new URL(request.url);
 
+    if (url.pathname === "/status" && request.method === "GET") {
+      const status = await getStatus(env);
+      return json({ ok: true, status });
+    }
+
     if (url.pathname === "/list" && request.method === "GET") {
-      const folder = url.searchParams.get("folder")?.replace(/\/$/, "");
+      const folder = cleanFolder(url.searchParams.get("folder"));
 
       if (!folder) {
         return json({ ok: false, error: "Missing folder" }, 400);
@@ -86,11 +149,17 @@ export default {
         }
       });
 
+      const status = await updateStatus(env, {
+        lastUploadAt: new Date().toISOString(),
+        lastUploadKey: key
+      });
+
       return json({
         ok: true,
         action: "uploaded",
         key,
-        url: makePublicUrl(env, key)
+        url: makePublicUrl(env, key),
+        status
       });
     }
 
@@ -115,11 +184,70 @@ export default {
 
       await env.ASTRO_PHOTO_BUCKET.delete(key);
 
+      const status = await updateStatus(env, {
+        lastHideAt: new Date().toISOString(),
+        lastHideKey: key
+      });
+
       return json({
         ok: true,
         action: "hidden",
         originalKey: key,
-        hiddenKey
+        hiddenKey,
+        status
+      });
+    }
+
+    if (url.pathname === "/info" && request.method === "GET") {
+      const folder = cleanFolder(url.searchParams.get("folder"));
+
+      if (!folder) {
+        return json({ ok: false, error: "Missing folder" }, 400);
+      }
+
+      const info = await readJsonObject(env, `${folder}/info.json`, {
+        name: folder.split("/").pop() || "",
+        catalog: "",
+        category: folder.startsWith("solar-system/")
+          ? "Solar System"
+          : "Deep Sky",
+        shortDescription: "",
+        description: "",
+        distance: "",
+        dateCaptured: "",
+        equipment: "Seestar S30",
+        location: "Florida, USA",
+        whatYouAreSeeing: "",
+        whyItIsInteresting: "",
+        captureNotes: ""
+      });
+
+      return json({ ok: true, folder, info });
+    }
+
+    if (url.pathname === "/info" && request.method === "PUT") {
+      const folder = cleanFolder(url.searchParams.get("folder"));
+
+      if (!folder) {
+        return json({ ok: false, error: "Missing folder" }, 400);
+      }
+
+      const info = await request.json();
+
+      await putJson(env, `${folder}/info.json`, info);
+
+      const status = await updateStatus(env, {
+        lastInfoSaveAt: new Date().toISOString(),
+        lastInfoFolder: folder
+      });
+
+      return json({
+        ok: true,
+        action: "info_saved",
+        folder,
+        key: `${folder}/info.json`,
+        info,
+        status
       });
     }
 
@@ -135,10 +263,16 @@ export default {
         method: "POST"
       });
 
+      const status = await updateStatus(env, {
+        lastRedeployRequestedAt: new Date().toISOString(),
+        lastRedeployStatus: response.status
+      });
+
       return json({
         ok: response.ok,
         action: "redeploy_requested",
-        status: response.status
+        status: response.status,
+        adminStatus: status
       });
     }
 

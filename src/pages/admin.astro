@@ -14,6 +14,17 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       <a href="/">← Back to gallery</a>
       <h1>Photo Admin</h1>
 
+      <section class="panel status-panel">
+        <div class="panel-header">
+          <h2>Site Status</h2>
+          <button id="refreshStatusBtn" type="button">Refresh Status</button>
+        </div>
+
+        <div id="statusGrid" class="status-grid">
+          <p class="muted">Enter your admin token and refresh status.</p>
+        </div>
+      </section>
+
       <section class="panel">
         <h2>Upload photo</h2>
 
@@ -42,6 +53,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         <div class="button-row">
           <button id="uploadBtn" type="button">Upload</button>
           <button id="listBtn" type="button">List files in folder</button>
+          <button id="loadInfoBtn" type="button">Load Target Info</button>
           <button id="redeployBtn" type="button">Redeploy Site</button>
         </div>
       </section>
@@ -53,17 +65,111 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         </div>
       </section>
 
+      <section class="panel">
+        <h2>Target Info Editor</h2>
+        <p class="muted">
+          This saves an <code>info.json</code> file inside the selected R2 folder.
+        </p>
+
+        <div class="form-grid">
+          <label>
+            Name
+            <input id="infoName" type="text" placeholder="Bode's Galaxy" />
+          </label>
+
+          <label>
+            Catalog
+            <input id="infoCatalog" type="text" placeholder="M81" />
+          </label>
+
+          <label>
+            Category
+            <input id="infoCategory" type="text" placeholder="Deep Sky" />
+          </label>
+
+          <label>
+            Distance
+            <input id="infoDistance" type="text" placeholder="~12 million light-years" />
+          </label>
+
+          <label>
+            Date Captured
+            <input id="infoDateCaptured" type="text" placeholder="June 2026" />
+          </label>
+
+          <label>
+            Equipment
+            <input id="infoEquipment" type="text" placeholder="Seestar S30" />
+          </label>
+
+          <label>
+            Location
+            <input id="infoLocation" type="text" placeholder="Florida, USA" />
+          </label>
+        </div>
+
+        <label>
+          Short Description
+          <textarea id="infoShortDescription" rows="2"></textarea>
+        </label>
+
+        <label>
+          Description
+          <textarea id="infoDescription" rows="4"></textarea>
+        </label>
+
+        <label>
+          What you're looking at
+          <textarea id="infoWhatYouAreSeeing" rows="4"></textarea>
+        </label>
+
+        <label>
+          Why it is interesting
+          <textarea id="infoWhyItIsInteresting" rows="4"></textarea>
+        </label>
+
+        <label>
+          Capture Notes
+          <textarea id="infoCaptureNotes" rows="4"></textarea>
+        </label>
+
+        <div class="button-row">
+          <button id="saveInfoBtn" type="button">Save Target Info</button>
+        </div>
+      </section>
+
       <pre id="result">Ready.</pre>
     </main>
 
     <script define:vars={{ adminApiUrl }}>
       const result = document.getElementById("result");
+      const statusGrid = document.getElementById("statusGrid");
+
       const uploadBtn = document.getElementById("uploadBtn");
       const listBtn = document.getElementById("listBtn");
+      const loadInfoBtn = document.getElementById("loadInfoBtn");
+      const saveInfoBtn = document.getElementById("saveInfoBtn");
       const redeployBtn = document.getElementById("redeployBtn");
+      const refreshStatusBtn = document.getElementById("refreshStatusBtn");
+
       const fileInput = document.getElementById("file");
       const preview = document.getElementById("preview");
       const fileList = document.getElementById("fileList");
+
+      const infoFields = {
+        name: document.getElementById("infoName"),
+        catalog: document.getElementById("infoCatalog"),
+        category: document.getElementById("infoCategory"),
+        distance: document.getElementById("infoDistance"),
+        dateCaptured: document.getElementById("infoDateCaptured"),
+        equipment: document.getElementById("infoEquipment"),
+        location: document.getElementById("infoLocation"),
+        shortDescription: document.getElementById("infoShortDescription"),
+        description: document.getElementById("infoDescription"),
+        whatYouAreSeeing: document.getElementById("infoWhatYouAreSeeing"),
+        whyItIsInteresting: document.getElementById("infoWhyItIsInteresting"),
+        captureNotes: document.getElementById("infoCaptureNotes")
+      };
 
       function show(message) {
         result.textContent =
@@ -78,6 +184,25 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         return document.getElementById("folder").value.trim().replace(/\/$/, "");
       }
 
+      function requireBasics({ requireFolder = true } = {}) {
+        if (!adminApiUrl) {
+          show("Missing PUBLIC_ADMIN_API_URL.");
+          return false;
+        }
+
+        if (!getToken()) {
+          show("Please enter your admin token.");
+          return false;
+        }
+
+        if (requireFolder && !getFolder()) {
+          show("Please enter a folder.");
+          return false;
+        }
+
+        return true;
+      }
+
       async function readResponse(response) {
         const text = await response.text();
 
@@ -89,6 +214,79 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
             status: response.status,
             responseText: text || "No response body"
           };
+        }
+      }
+
+      function formatDate(value) {
+        if (!value) return "Never";
+
+        try {
+          return new Date(value).toLocaleString();
+        } catch {
+          return value;
+        }
+      }
+
+      function renderStatus(status) {
+        statusGrid.innerHTML = `
+          <div class="status-card">
+            <span>Last redeploy requested</span>
+            <strong>${formatDate(status.lastRedeployRequestedAt)}</strong>
+          </div>
+
+          <div class="status-card">
+            <span>Last redeploy status</span>
+            <strong>${status.lastRedeployStatus || "Unknown"}</strong>
+          </div>
+
+          <div class="status-card">
+            <span>Last upload</span>
+            <strong>${formatDate(status.lastUploadAt)}</strong>
+            <code>${status.lastUploadKey || ""}</code>
+          </div>
+
+          <div class="status-card">
+            <span>Last hidden file</span>
+            <strong>${formatDate(status.lastHideAt)}</strong>
+            <code>${status.lastHideKey || ""}</code>
+          </div>
+
+          <div class="status-card">
+            <span>Last info save</span>
+            <strong>${formatDate(status.lastInfoSaveAt)}</strong>
+            <code>${status.lastInfoFolder || ""}</code>
+          </div>
+        `;
+      }
+
+      async function refreshStatus() {
+        if (!requireBasics({ requireFolder: false })) return;
+
+        try {
+          refreshStatusBtn.disabled = true;
+          refreshStatusBtn.textContent = "Refreshing...";
+
+          const response = await fetch(`${adminApiUrl}/status`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${getToken()}`
+            }
+          });
+
+          const data = await readResponse(response);
+
+          if (!response.ok) {
+            show({ ok: false, message: "Status failed", details: data });
+            return;
+          }
+
+          renderStatus(data.status || {});
+          show(data);
+        } catch (error) {
+          show(`Status failed: ${error.message}`);
+        } finally {
+          refreshStatusBtn.disabled = false;
+          refreshStatusBtn.textContent = "Refresh Status";
         }
       }
 
@@ -106,23 +304,9 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       });
 
       async function listFiles() {
-        const token = getToken();
+        if (!requireBasics()) return;
+
         const folder = getFolder();
-
-        if (!adminApiUrl) {
-          show("Missing PUBLIC_ADMIN_API_URL.");
-          return;
-        }
-
-        if (!token) {
-          show("Please enter your admin token.");
-          return;
-        }
-
-        if (!folder) {
-          show("Please enter a folder.");
-          return;
-        }
 
         try {
           listBtn.disabled = true;
@@ -134,7 +318,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
             {
               method: "GET",
               headers: {
-                Authorization: `Bearer ${token}`
+                Authorization: `Bearer ${getToken()}`
               }
             }
           );
@@ -188,16 +372,13 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           button.addEventListener("click", async () => {
             await hideFile(button.dataset.key);
             await listFiles();
+            await refreshStatus();
           });
         });
       }
 
       async function hideFile(key) {
-        const token = getToken();
-
-        if (!confirm(`Hide this file?\n\n${key}`)) {
-          return;
-        }
+        if (!confirm(`Hide this file?\n\n${key}`)) return;
 
         try {
           show(`Hiding ${key}...`);
@@ -205,7 +386,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           const response = await fetch(`${adminApiUrl}/hide`, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${token}`,
+              Authorization: `Bearer ${getToken()}`,
               "Content-Type": "application/json"
             },
             body: JSON.stringify({ key })
@@ -230,23 +411,14 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       }
 
       uploadBtn.addEventListener("click", async () => {
-        const token = getToken();
+        if (!requireBasics()) return;
+
         const folder = getFolder();
         const filename = document.getElementById("filename").value.trim();
         const file = fileInput.files[0];
 
-        if (!adminApiUrl) {
-          show("Missing PUBLIC_ADMIN_API_URL.");
-          return;
-        }
-
-        if (!token) {
-          show("Please enter your admin token.");
-          return;
-        }
-
-        if (!folder || !filename || !file) {
-          show("Please enter folder, filename, and choose a file.");
+        if (!filename || !file) {
+          show("Please enter filename and choose a file.");
           return;
         }
 
@@ -262,7 +434,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
             {
               method: "PUT",
               headers: {
-                Authorization: `Bearer ${token}`,
+                Authorization: `Bearer ${getToken()}`,
                 "Content-Type": file.type || "application/octet-stream"
               },
               body: file
@@ -283,6 +455,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
           show(data);
           await listFiles();
+          await refreshStatus();
         } catch (error) {
           show(`Upload failed: ${error.message}`);
         } finally {
@@ -291,18 +464,103 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         }
       });
 
+      async function loadInfo() {
+        if (!requireBasics()) return;
+
+        const folder = getFolder();
+
+        try {
+          loadInfoBtn.disabled = true;
+          loadInfoBtn.textContent = "Loading...";
+
+          const response = await fetch(
+            `${adminApiUrl}/info?folder=${encodeURIComponent(folder)}`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${getToken()}`
+              }
+            }
+          );
+
+          const data = await readResponse(response);
+
+          if (!response.ok) {
+            show({
+              ok: false,
+              message: "Load info failed",
+              status: response.status,
+              details: data
+            });
+            return;
+          }
+
+          const info = data.info || {};
+
+          Object.entries(infoFields).forEach(([key, element]) => {
+            element.value = info[key] || "";
+          });
+
+          show(data);
+        } catch (error) {
+          show(`Load info failed: ${error.message}`);
+        } finally {
+          loadInfoBtn.disabled = false;
+          loadInfoBtn.textContent = "Load Target Info";
+        }
+      }
+
+      async function saveInfo() {
+        if (!requireBasics()) return;
+
+        const folder = getFolder();
+
+        const info = {};
+        Object.entries(infoFields).forEach(([key, element]) => {
+          info[key] = element.value.trim();
+        });
+
+        try {
+          saveInfoBtn.disabled = true;
+          saveInfoBtn.textContent = "Saving...";
+          show(`Saving info.json in ${folder}...`);
+
+          const response = await fetch(
+            `${adminApiUrl}/info?folder=${encodeURIComponent(folder)}`,
+            {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${getToken()}`,
+                "Content-Type": "application/json"
+              },
+              body: JSON.stringify(info)
+            }
+          );
+
+          const data = await readResponse(response);
+
+          if (!response.ok) {
+            show({
+              ok: false,
+              message: "Save info failed",
+              status: response.status,
+              details: data
+            });
+            return;
+          }
+
+          show(data);
+          await refreshStatus();
+        } catch (error) {
+          show(`Save info failed: ${error.message}`);
+        } finally {
+          saveInfoBtn.disabled = false;
+          saveInfoBtn.textContent = "Save Target Info";
+        }
+      }
+
       redeployBtn.addEventListener("click", async () => {
-        const token = getToken();
-
-        if (!adminApiUrl) {
-          show("Missing PUBLIC_ADMIN_API_URL.");
-          return;
-        }
-
-        if (!token) {
-          show("Please enter your admin token.");
-          return;
-        }
+        if (!requireBasics({ requireFolder: false })) return;
 
         try {
           redeployBtn.disabled = true;
@@ -312,7 +570,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           const response = await fetch(`${adminApiUrl}/redeploy`, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${token}`
+              Authorization: `Bearer ${getToken()}`
             }
           });
 
@@ -332,6 +590,8 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
             ...data,
             note: "Redeploy requested. Wait for Cloudflare Pages to finish, then refresh the public site."
           });
+
+          await refreshStatus();
         } catch (error) {
           show(`Redeploy failed: ${error.message}`);
         } finally {
@@ -341,6 +601,9 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       });
 
       listBtn.addEventListener("click", listFiles);
+      loadInfoBtn.addEventListener("click", loadInfo);
+      saveInfoBtn.addEventListener("click", saveInfo);
+      refreshStatusBtn.addEventListener("click", refreshStatus);
     </script>
   </body>
 </html>
@@ -354,7 +617,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   }
 
   main {
-    max-width: 900px;
+    max-width: 980px;
     margin: 0 auto;
     padding: 32px 20px;
   }
@@ -371,6 +634,13 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     margin: 22px 0;
   }
 
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
   label {
     display: grid;
     gap: 8px;
@@ -378,12 +648,53 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     color: #c7d2ea;
   }
 
-  input {
+  input,
+  textarea {
     padding: 12px;
     border-radius: 10px;
     border: 1px solid rgba(125, 162, 255, 0.35);
     background: #05070d;
     color: white;
+    font: inherit;
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  code {
+    color: #9db7ff;
+  }
+
+  .form-grid,
+  .status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+  }
+
+  .status-card {
+    background: rgba(5, 7, 13, 0.65);
+    border: 1px solid rgba(125, 162, 255, 0.18);
+    border-radius: 14px;
+    padding: 14px;
+    display: grid;
+    gap: 5px;
+  }
+
+  .status-card span {
+    color: #9db7ff;
+    font-size: 13px;
+  }
+
+  .status-card strong {
+    color: white;
+    font-size: 15px;
+  }
+
+  .status-card code {
+    font-size: 12px;
+    overflow-wrap: anywhere;
   }
 
   .button-row {
@@ -466,6 +777,11 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   }
 
   @media (max-width: 640px) {
+    .panel-header {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
     .file-card {
       grid-template-columns: 1fr;
     }
