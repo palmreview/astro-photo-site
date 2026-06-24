@@ -4,7 +4,8 @@ import {
   getImagesForFolder,
   getDownloadsForFolder,
   getObservationsForFolder,
-  getAnnotatedImageForFolder
+  getAnnotatedImageForFolder,
+  getSkyMapForFolder
 } from "../../lib/r2-images.js";
 
 export async function getStaticPaths() {
@@ -16,6 +17,7 @@ export async function getStaticPaths() {
       const downloads = await getDownloadsForFolder(target.folder);
       const observationData = await getObservationsForFolder(target.folder);
       const annotatedImage = await getAnnotatedImageForFolder(target.folder);
+      const skyMap = await getSkyMapForFolder(target.folder);
 
       return {
         params: { slug: target.slug },
@@ -25,6 +27,7 @@ export async function getStaticPaths() {
             images,
             downloads,
             annotatedImage,
+            skyMap,
             observations: observationData.observations,
             observationSummary: observationData.summary
           }
@@ -62,14 +65,25 @@ const quickFacts = [
         <div class="image-panel">
           {firstImage ? (
             <>
-              <img id="mainImage" src={firstImage.url} alt={target.name} title="Click to enlarge" />
+              <img
+                id="mainImage"
+                src={firstImage.url}
+                alt={target.name}
+                title="Click to enlarge"
+              />
 
-              <p id="imageLabel" class="image-label">{firstImage.label}</p>
+              <p id="imageLabel" class="image-label">
+                {firstImage.label}
+              </p>
 
               {target.annotatedImage && (
                 <div class="view-toggle">
-                  <button id="originalViewBtn" class="active" type="button">Original</button>
-                  <button id="annotatedViewBtn" type="button">Annotated</button>
+                  <button id="originalViewBtn" class="active" type="button">
+                    Original
+                  </button>
+                  <button id="annotatedViewBtn" type="button">
+                    Annotated
+                  </button>
                 </div>
               )}
 
@@ -95,7 +109,9 @@ const quickFacts = [
               )}
             </>
           ) : (
-            <div class="missing-image">No photos found in this Cloudflare folder yet.</div>
+            <div class="missing-image">
+              No photos found in this Cloudflare folder yet.
+            </div>
           )}
         </div>
 
@@ -152,6 +168,24 @@ const quickFacts = [
             </section>
           )}
 
+          {target.skyMap && (
+            <section class="extra">
+              <h2>Where it is in the sky</h2>
+              <p>
+                This simple finder map shows the general area of the night sky
+                where this target is located.
+              </p>
+
+              <a href={target.skyMap.url} target="_blank" rel="noopener noreferrer">
+                <img
+                  class="sky-map"
+                  src={target.skyMap.url}
+                  alt={`${target.name} sky map`}
+                />
+              </a>
+            </section>
+          )}
+
           {target.whatYouAreSeeing && (
             <section class="extra">
               <h2>What you're looking at</h2>
@@ -199,7 +233,10 @@ const quickFacts = [
           {target.downloads?.length > 0 && (
             <section class="downloads">
               <h2>Download raw files</h2>
-              <p>Want to try processing this target yourself? Download the original data files below.</p>
+              <p>
+                Want to try processing this target yourself? Download the
+                original data files below.
+              </p>
 
               <div class="download-list">
                 {target.downloads.map((file) => (
@@ -218,9 +255,67 @@ const quickFacts = [
       </article>
     </main>
 
+    {target.images?.length > 0 && firstImage && (
+      <div id="lightbox" class="lightbox" aria-hidden="true">
+        <button
+          id="lightboxClose"
+          class="lightbox-close"
+          type="button"
+          aria-label="Close full screen image"
+        >
+          ×
+        </button>
+
+        <div class="zoom-controls">
+          <button id="zoomOutBtn" type="button" aria-label="Zoom out">−</button>
+          <button id="zoomResetBtn" type="button" aria-label="Reset zoom">Reset</button>
+          <button id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
+        </div>
+
+        {target.images.length > 1 && (
+          <button
+            id="lightboxPrev"
+            class="lightbox-nav lightbox-prev"
+            type="button"
+            aria-label="Previous image"
+          >
+            ←
+          </button>
+        )}
+
+        <div class="lightbox-image-wrap">
+          <img id="lightboxImage" src={firstImage.url} alt={firstImage.label} />
+        </div>
+
+        {target.images.length > 1 && (
+          <button
+            id="lightboxNext"
+            class="lightbox-nav lightbox-next"
+            type="button"
+            aria-label="Next image"
+          >
+            →
+          </button>
+        )}
+
+        <p id="lightboxLabel" class="lightbox-label">{firstImage.label}</p>
+
+        <a
+          id="fullResolutionLink"
+          class="full-resolution-link"
+          href={firstImage.url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          View full resolution
+        </a>
+      </div>
+    )}
+
     {target.images?.length > 0 && (
       <script define:vars={{ images: target.images, annotatedImage: target.annotatedImage }}>
         let currentIndex = 0;
+        let zoomLevel = 1;
         let showingAnnotated = false;
 
         const mainImage = document.getElementById("mainImage");
@@ -233,52 +328,202 @@ const quickFacts = [
         const originalViewBtn = document.getElementById("originalViewBtn");
         const annotatedViewBtn = document.getElementById("annotatedViewBtn");
 
-        function getCurrentImage() {
-          return showingAnnotated && annotatedImage ? annotatedImage : images[currentIndex];
+        const lightbox = document.getElementById("lightbox");
+        const lightboxImage = document.getElementById("lightboxImage");
+        const lightboxLabel = document.getElementById("lightboxLabel");
+        const lightboxClose = document.getElementById("lightboxClose");
+        const lightboxPrev = document.getElementById("lightboxPrev");
+        const lightboxNext = document.getElementById("lightboxNext");
+        const fullResolutionLink = document.getElementById("fullResolutionLink");
+
+        const zoomInBtn = document.getElementById("zoomInBtn");
+        const zoomOutBtn = document.getElementById("zoomOutBtn");
+        const zoomResetBtn = document.getElementById("zoomResetBtn");
+
+        function getCurrentDisplayImage() {
+          return showingAnnotated && annotatedImage
+            ? annotatedImage
+            : images[currentIndex];
         }
 
-        function updateButtons() {
+        function updateToggleButtons() {
           if (!originalViewBtn || !annotatedViewBtn) return;
+
           originalViewBtn.classList.toggle("active", !showingAnnotated);
           annotatedViewBtn.classList.toggle("active", showingAnnotated);
         }
 
-        function updateDisplay() {
-          const img = getCurrentImage();
+        function updateZoom() {
+          if (!lightboxImage) return;
 
-          mainImage.src = img.url;
-          mainImage.alt = img.label;
-          imageLabel.textContent = img.label;
+          lightboxImage.style.transform = `scale(${zoomLevel})`;
+          lightboxImage.style.cursor = zoomLevel > 1 ? "zoom-out" : "zoom-in";
+        }
 
-          if (counter) {
-            counter.textContent = showingAnnotated ? "Annotated" : `${currentIndex + 1} / ${images.length}`;
-          }
+        function zoomIn() {
+          zoomLevel = Math.min(zoomLevel + 0.25, 4);
+          updateZoom();
+        }
 
+        function zoomOut() {
+          zoomLevel = Math.max(zoomLevel - 0.25, 1);
+          updateZoom();
+        }
+
+        function resetZoom() {
+          zoomLevel = 1;
+          updateZoom();
+        }
+
+        function updateActiveThumb() {
           thumbs.forEach((thumb) => thumb.classList.remove("active"));
+
           if (!showingAnnotated && thumbs[currentIndex]) {
             thumbs[currentIndex].classList.add("active");
           }
+        }
 
-          updateButtons();
+        function updateDisplayedImage() {
+          const img = getCurrentDisplayImage();
+
+          if (mainImage) {
+            mainImage.src = img.url;
+            mainImage.alt = img.label;
+          }
+
+          if (imageLabel) {
+            imageLabel.textContent = img.label;
+          }
+
+          if (counter && !showingAnnotated) {
+            counter.textContent = `${currentIndex + 1} / ${images.length}`;
+          }
+
+          if (counter && showingAnnotated) {
+            counter.textContent = "Annotated";
+          }
+
+          if (lightboxImage) {
+            lightboxImage.src = img.url;
+            lightboxImage.alt = img.label;
+          }
+
+          if (lightboxLabel) {
+            lightboxLabel.textContent = img.label;
+          }
+
+          if (fullResolutionLink) {
+            fullResolutionLink.href = img.url;
+          }
+
+          updateActiveThumb();
+          updateToggleButtons();
         }
 
         function showImage(index) {
           currentIndex = index;
           showingAnnotated = false;
-          updateDisplay();
+          resetZoom();
+          updateDisplayedImage();
+        }
+
+        function showAnnotated() {
+          if (!annotatedImage) return;
+          showingAnnotated = true;
+          resetZoom();
+          updateDisplayedImage();
+        }
+
+        function showOriginal() {
+          showingAnnotated = false;
+          resetZoom();
+          updateDisplayedImage();
+        }
+
+        function openLightbox() {
+          if (!lightbox) return;
+
+          resetZoom();
+          lightbox.classList.add("open");
+          lightbox.setAttribute("aria-hidden", "false");
+          document.body.classList.add("lightbox-open");
+        }
+
+        function closeLightbox() {
+          if (!lightbox) return;
+
+          resetZoom();
+          lightbox.classList.remove("open");
+          lightbox.setAttribute("aria-hidden", "true");
+          document.body.classList.remove("lightbox-open");
+        }
+
+        if (mainImage) {
+          mainImage.addEventListener("click", openLightbox);
         }
 
         if (originalViewBtn) {
-          originalViewBtn.addEventListener("click", () => {
-            showingAnnotated = false;
-            updateDisplay();
-          });
+          originalViewBtn.addEventListener("click", showOriginal);
         }
 
         if (annotatedViewBtn) {
-          annotatedViewBtn.addEventListener("click", () => {
-            showingAnnotated = true;
-            updateDisplay();
+          annotatedViewBtn.addEventListener("click", showAnnotated);
+        }
+
+        if (lightboxImage) {
+          lightboxImage.addEventListener("click", () => {
+            if (zoomLevel === 1) {
+              zoomIn();
+            } else {
+              resetZoom();
+            }
+          });
+        }
+
+        if (zoomInBtn) {
+          zoomInBtn.addEventListener("click", (event) => {
+            event.stopPropagation();
+            zoomIn();
+          });
+        }
+
+        if (zoomOutBtn) {
+          zoomOutBtn.addEventListener("click", (event) => {
+            event.stopPropagation();
+            zoomOut();
+          });
+        }
+
+        if (zoomResetBtn) {
+          zoomResetBtn.addEventListener("click", (event) => {
+            event.stopPropagation();
+            resetZoom();
+          });
+        }
+
+        if (lightboxClose) {
+          lightboxClose.addEventListener("click", closeLightbox);
+        }
+
+        if (lightbox) {
+          lightbox.addEventListener("click", (event) => {
+            if (event.target === lightbox) {
+              closeLightbox();
+            }
+          });
+        }
+
+        if (lightboxPrev) {
+          lightboxPrev.addEventListener("click", (event) => {
+            event.stopPropagation();
+            showImage((currentIndex - 1 + images.length) % images.length);
+          });
+        }
+
+        if (lightboxNext) {
+          lightboxNext.addEventListener("click", (event) => {
+            event.stopPropagation();
+            showImage((currentIndex + 1) % images.length);
           });
         }
 
@@ -297,6 +542,38 @@ const quickFacts = [
             showImage((currentIndex + 1) % images.length);
           });
         }
+
+        document.addEventListener("keydown", (event) => {
+          const isOpen = lightbox?.classList.contains("open");
+
+          if (event.key === "Escape") {
+            closeLightbox();
+          }
+
+          if (event.key === "ArrowLeft") {
+            showImage((currentIndex - 1 + images.length) % images.length);
+          }
+
+          if (event.key === "ArrowRight") {
+            showImage((currentIndex + 1) % images.length);
+          }
+
+          if (isOpen && (event.key === "+" || event.key === "=")) {
+            zoomIn();
+          }
+
+          if (isOpen && event.key === "-") {
+            zoomOut();
+          }
+
+          if (isOpen && event.key === "0") {
+            resetZoom();
+          }
+        });
+
+        updateActiveThumb();
+        updateToggleButtons();
+        updateZoom();
       </script>
     )}
   </body>
@@ -308,6 +585,10 @@ const quickFacts = [
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: radial-gradient(circle at top, #0c1222, #05070d);
     color: white;
+  }
+
+  body.lightbox-open {
+    overflow: hidden;
   }
 
   main {
@@ -339,6 +620,7 @@ const quickFacts = [
     max-height: 650px;
     object-fit: contain;
     display: block;
+    cursor: zoom-in;
     background: black;
   }
 
@@ -360,8 +642,7 @@ const quickFacts = [
     background: #05070d;
   }
 
-  .view-toggle,
-  .controls {
+  .view-toggle {
     display: flex;
     justify-content: center;
     gap: 10px;
@@ -369,8 +650,7 @@ const quickFacts = [
     background: #05070d;
   }
 
-  .view-toggle button,
-  .controls button {
+  .view-toggle button {
     background: #121827;
     color: white;
     border: 1px solid rgba(125, 162, 255, 0.35);
@@ -384,12 +664,30 @@ const quickFacts = [
     border-color: #7da2ff;
   }
 
+  .controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    background: #05070d;
+  }
+
+  .controls button {
+    background: #121827;
+    color: white;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    padding: 9px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 18px;
+  }
+
   #counter {
     color: #c7d2ea;
     font-size: 14px;
     min-width: 80px;
     text-align: center;
-    align-self: center;
   }
 
   .thumbnails {
@@ -410,6 +708,10 @@ const quickFacts = [
     border: 2px solid transparent;
     flex: 0 0 auto;
     background: black;
+  }
+
+  .thumb:hover {
+    opacity: 1;
   }
 
   .thumb.active {
@@ -488,6 +790,16 @@ const quickFacts = [
     line-height: 1.6;
   }
 
+  .sky-map {
+    width: 100%;
+    max-height: 520px;
+    object-fit: contain;
+    background: black;
+    border-radius: 14px;
+    border: 1px solid rgba(125, 162, 255, 0.22);
+    margin-top: 12px;
+  }
+
   .download-list {
     display: grid;
     gap: 12px;
@@ -507,14 +819,172 @@ const quickFacts = [
     text-decoration: none;
   }
 
+  .download-card strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+
   .download-card span {
     color: #9db7ff;
     font-size: 14px;
   }
 
+  .download-button {
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.92);
+    padding: 24px;
+  }
+
+  .lightbox.open {
+    display: flex;
+  }
+
+  .lightbox-image-wrap {
+    max-width: 96vw;
+    max-height: 78vh;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .lightbox img {
+    max-width: 96vw;
+    max-height: 78vh;
+    object-fit: contain;
+    border-radius: 10px;
+    transition: transform 0.15s ease;
+    transform-origin: center center;
+  }
+
+  .lightbox-label {
+    color: #c7d2ea;
+    font-size: 14px;
+    margin: 12px 0 0;
+    text-align: center;
+  }
+
+  .full-resolution-link {
+    color: white;
+    text-decoration: none;
+    margin-top: 12px;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    padding: 8px 14px;
+    background: rgba(18, 24, 39, 0.9);
+    font-size: 14px;
+  }
+
+  .full-resolution-link:hover {
+    background: #1c2540;
+  }
+
+  .lightbox-close {
+    position: fixed;
+    top: 18px;
+    right: 22px;
+    background: rgba(18, 24, 39, 0.9);
+    color: white;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    width: 42px;
+    height: 42px;
+    cursor: pointer;
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .zoom-controls {
+    position: fixed;
+    top: 18px;
+    left: 22px;
+    display: flex;
+    gap: 8px;
+    z-index: 10000;
+  }
+
+  .zoom-controls button {
+    background: rgba(18, 24, 39, 0.9);
+    color: white;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .zoom-controls button:hover {
+    background: #1c2540;
+  }
+
+  .lightbox-nav {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(18, 24, 39, 0.9);
+    color: white;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    border-radius: 999px;
+    width: 48px;
+    height: 48px;
+    cursor: pointer;
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .lightbox-prev {
+    left: 24px;
+  }
+
+  .lightbox-next {
+    right: 24px;
+  }
+
+  .lightbox-nav:hover,
+  .lightbox-close:hover {
+    background: #1c2540;
+  }
+
   @media (max-width: 640px) {
     h1 {
       font-size: 30px;
+    }
+
+    .lightbox-nav {
+      width: 42px;
+      height: 42px;
+      font-size: 24px;
+    }
+
+    .lightbox-prev {
+      left: 10px;
+    }
+
+    .lightbox-next {
+      right: 10px;
+    }
+
+    .zoom-controls {
+      left: 10px;
+      top: 12px;
+    }
+
+    .zoom-controls button {
+      padding: 7px 10px;
+      font-size: 13px;
     }
   }
 </style>
