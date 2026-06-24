@@ -87,9 +87,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
       <section class="panel">
         <h2>Observation Log</h2>
-        <p class="muted">
-          Track each imaging session for the selected folder.
-        </p>
+        <p class="muted">Track each imaging session for the selected folder.</p>
 
         <div class="form-grid">
           <label>
@@ -128,6 +126,11 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           This saves an <code>info.json</code> file inside the selected R2 folder.
         </p>
 
+        <div class="button-row info-actions">
+          <button id="generateInfoBtn" type="button">Generate Starter Info</button>
+          <button id="saveInfoBtn" type="button">Save Target Info</button>
+        </div>
+
         <div class="form-grid">
           <label>
             Name
@@ -145,8 +148,33 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           </label>
 
           <label>
+            Object Type
+            <input id="infoObjectType" type="text" placeholder="Grand Design Spiral Galaxy" />
+          </label>
+
+          <label>
+            Constellation
+            <input id="infoConstellation" type="text" placeholder="Ursa Major" />
+          </label>
+
+          <label>
             Distance
             <input id="infoDistance" type="text" placeholder="~12 million light-years" />
+          </label>
+
+          <label>
+            Apparent Magnitude
+            <input id="infoApparentMagnitude" type="text" placeholder="6.9" />
+          </label>
+
+          <label>
+            Diameter
+            <input id="infoDiameter" type="text" placeholder="~90,000 light-years" />
+          </label>
+
+          <label>
+            Discovered
+            <input id="infoDiscovered" type="text" placeholder="1774" />
           </label>
 
           <label>
@@ -189,10 +217,6 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           Capture Notes
           <textarea id="infoCaptureNotes" rows="4"></textarea>
         </label>
-
-        <div class="button-row">
-          <button id="saveInfoBtn" type="button">Save Target Info</button>
-        </div>
       </section>
 
       <pre id="result">Ready.</pre>
@@ -210,6 +234,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       const listHiddenBtn = document.getElementById("listHiddenBtn");
       const loadInfoBtn = document.getElementById("loadInfoBtn");
       const saveInfoBtn = document.getElementById("saveInfoBtn");
+      const generateInfoBtn = document.getElementById("generateInfoBtn");
       const redeployBtn = document.getElementById("redeployBtn");
       const refreshStatusBtn = document.getElementById("refreshStatusBtn");
       const addObservationBtn = document.getElementById("addObservationBtn");
@@ -222,7 +247,12 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         name: document.getElementById("infoName"),
         catalog: document.getElementById("infoCatalog"),
         category: document.getElementById("infoCategory"),
+        objectType: document.getElementById("infoObjectType"),
+        constellation: document.getElementById("infoConstellation"),
         distance: document.getElementById("infoDistance"),
+        apparentMagnitude: document.getElementById("infoApparentMagnitude"),
+        diameter: document.getElementById("infoDiameter"),
+        discovered: document.getElementById("infoDiscovered"),
         dateCaptured: document.getElementById("infoDateCaptured"),
         equipment: document.getElementById("infoEquipment"),
         location: document.getElementById("infoLocation"),
@@ -304,6 +334,20 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         } catch {
           return value;
         }
+      }
+
+      function fillInfoFields(info) {
+        Object.entries(infoFields).forEach(([key, element]) => {
+          element.value = info?.[key] || "";
+        });
+      }
+
+      function collectInfoFields() {
+        const info = {};
+        Object.entries(infoFields).forEach(([key, element]) => {
+          info[key] = element.value.trim();
+        });
+        return info;
       }
 
       function renderStatus(status) {
@@ -674,15 +718,33 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
         try {
           const data = await api(`/info?folder=${encodeURIComponent(folder)}`);
-          const info = data.info || {};
-
-          Object.entries(infoFields).forEach(([key, element]) => {
-            element.value = info[key] || "";
-          });
-
+          fillInfoFields(data.info || {});
           show(data);
         } catch (error) {
           show({ ok: false, message: "Load info failed", details: error.data || error.message });
+        }
+      }
+
+      async function generateInfo() {
+        if (!requireBasics()) return;
+
+        const folder = getFolder();
+
+        try {
+          generateInfoBtn.disabled = true;
+          show(`Generating starter info for ${folder}...`);
+
+          const data = await api(`/generate-info?folder=${encodeURIComponent(folder)}`);
+          fillInfoFields(data.info || {});
+
+          show({
+            ...data,
+            note: "Starter info filled in. Review it, then click Save Target Info."
+          });
+        } catch (error) {
+          show({ ok: false, message: "Generate info failed", details: error.data || error.message });
+        } finally {
+          generateInfoBtn.disabled = false;
         }
       }
 
@@ -690,11 +752,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         if (!requireBasics()) return;
 
         const folder = getFolder();
-        const info = {};
-
-        Object.entries(infoFields).forEach(([key, element]) => {
-          info[key] = element.value.trim();
-        });
+        const info = collectInfoFields();
 
         try {
           const data = await api(`/info?folder=${encodeURIComponent(folder)}`, {
@@ -735,6 +793,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       listBtn.addEventListener("click", listFiles);
       listHiddenBtn.addEventListener("click", listHiddenFiles);
       loadInfoBtn.addEventListener("click", loadInfo);
+      generateInfoBtn.addEventListener("click", generateInfo);
       saveInfoBtn.addEventListener("click", saveInfo);
       refreshStatusBtn.addEventListener("click", refreshStatus);
       addObservationBtn.addEventListener("click", addObservation);
@@ -844,6 +903,10 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     gap: 12px;
   }
 
+  .info-actions {
+    margin-bottom: 18px;
+  }
+
   button {
     padding: 12px 16px;
     border-radius: 999px;
@@ -856,6 +919,10 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   button:disabled {
     opacity: 0.55;
     cursor: wait;
+  }
+
+  #generateInfoBtn {
+    background: #26335f;
   }
 
   .make-main-btn,
