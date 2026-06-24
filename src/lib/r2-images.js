@@ -217,23 +217,35 @@ export async function getDiscoveredTargets() {
         catalog: info?.catalog || "",
         category: info?.category || category,
         folder,
+
         shortDescription:
           info?.shortDescription ||
           info?.description ||
           "A space photo from Andrew's astrophotography collection.",
+
         description:
           info?.description ||
           "This target was automatically discovered from the image folder in Cloudflare R2.",
-        distance: info?.distance,
-        dateCaptured: info?.dateCaptured,
-        equipment: info?.equipment,
-        location: info?.location,
+
+        distance: info?.distance || "",
+        dateCaptured: info?.dateCaptured || "",
+        equipment: info?.equipment || "",
+        location: info?.location || "",
+
+        objectType: info?.objectType || "",
+        constellation: info?.constellation || "",
+        apparentMagnitude: info?.apparentMagnitude || "",
+        diameter: info?.diameter || "",
+        discovered: info?.discovered || "",
+
         whatYouAreSeeing:
           info?.whatYouAreSeeing ||
           "This image shows a real object in space captured through a smart telescope.",
+
         whyItIsInteresting:
           info?.whyItIsInteresting ||
           "It is part of a growing beginner-friendly astrophotography gallery.",
+
         captureNotes:
           info?.captureNotes ||
           "Uploaded through the site admin tools."
