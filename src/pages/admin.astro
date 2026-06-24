@@ -19,7 +19,6 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           <h2>Site Status</h2>
           <button id="refreshStatusBtn" type="button">Refresh Status</button>
         </div>
-
         <div id="statusGrid" class="status-grid">
           <p class="muted">Enter your admin token and refresh status.</p>
         </div>
@@ -28,25 +27,10 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       <section class="panel">
         <h2>Upload photo</h2>
 
-        <label>
-          Admin token
-          <input id="token" type="password" placeholder="Admin token" />
-        </label>
-
-        <label>
-          R2 folder
-          <input id="folder" type="text" placeholder="deep-sky/M 81" />
-        </label>
-
-        <label>
-          File name
-          <input id="filename" type="text" placeholder="main.jpg" />
-        </label>
-
-        <label>
-          Photo
-          <input id="file" type="file" accept="image/*" />
-        </label>
+        <label>Admin token <input id="token" type="password" placeholder="Admin token" /></label>
+        <label>R2 folder <input id="folder" type="text" placeholder="deep-sky/M 81" /></label>
+        <label>File name <input id="filename" type="text" placeholder="main.jpg" /></label>
+        <label>Photo <input id="file" type="file" accept="image/*" /></label>
 
         <img id="preview" class="preview" alt="Upload preview" />
 
@@ -61,10 +45,25 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       <section class="panel">
         <h2>Files in folder</h2>
         <p class="muted">
-          Use <strong>Make Main</strong> to choose which image appears first on the target page and homepage.
+          Use <strong>Make Main</strong> to choose which image appears first.
         </p>
         <div id="fileList" class="file-list">
           <p class="muted">Enter a folder and click “List files in folder.”</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Hidden / Trash Files</h2>
+          <button id="listHiddenBtn" type="button">List Hidden Files</button>
+        </div>
+
+        <p class="muted">
+          Restore files you hid, or permanently delete them when you are sure.
+        </p>
+
+        <div id="hiddenList" class="file-list">
+          <p class="muted">Click “List Hidden Files” to view hidden files.</p>
         </div>
       </section>
 
@@ -75,66 +74,20 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         </p>
 
         <div class="form-grid">
-          <label>
-            Name
-            <input id="infoName" type="text" placeholder="Bode's Galaxy" />
-          </label>
-
-          <label>
-            Catalog
-            <input id="infoCatalog" type="text" placeholder="M81" />
-          </label>
-
-          <label>
-            Category
-            <input id="infoCategory" type="text" placeholder="Deep Sky" />
-          </label>
-
-          <label>
-            Distance
-            <input id="infoDistance" type="text" placeholder="~12 million light-years" />
-          </label>
-
-          <label>
-            Date Captured
-            <input id="infoDateCaptured" type="text" placeholder="June 2026" />
-          </label>
-
-          <label>
-            Equipment
-            <input id="infoEquipment" type="text" placeholder="Seestar S30" />
-          </label>
-
-          <label>
-            Location
-            <input id="infoLocation" type="text" placeholder="Florida, USA" />
-          </label>
+          <label>Name <input id="infoName" type="text" placeholder="Bode's Galaxy" /></label>
+          <label>Catalog <input id="infoCatalog" type="text" placeholder="M81" /></label>
+          <label>Category <input id="infoCategory" type="text" placeholder="Deep Sky" /></label>
+          <label>Distance <input id="infoDistance" type="text" placeholder="~12 million light-years" /></label>
+          <label>Date Captured <input id="infoDateCaptured" type="text" placeholder="June 2026" /></label>
+          <label>Equipment <input id="infoEquipment" type="text" placeholder="Seestar S30" /></label>
+          <label>Location <input id="infoLocation" type="text" placeholder="Florida, USA" /></label>
         </div>
 
-        <label>
-          Short Description
-          <textarea id="infoShortDescription" rows="2"></textarea>
-        </label>
-
-        <label>
-          Description
-          <textarea id="infoDescription" rows="4"></textarea>
-        </label>
-
-        <label>
-          What you're looking at
-          <textarea id="infoWhatYouAreSeeing" rows="4"></textarea>
-        </label>
-
-        <label>
-          Why it is interesting
-          <textarea id="infoWhyItIsInteresting" rows="4"></textarea>
-        </label>
-
-        <label>
-          Capture Notes
-          <textarea id="infoCaptureNotes" rows="4"></textarea>
-        </label>
+        <label>Short Description <textarea id="infoShortDescription" rows="2"></textarea></label>
+        <label>Description <textarea id="infoDescription" rows="4"></textarea></label>
+        <label>What you're looking at <textarea id="infoWhatYouAreSeeing" rows="4"></textarea></label>
+        <label>Why it is interesting <textarea id="infoWhyItIsInteresting" rows="4"></textarea></label>
+        <label>Capture Notes <textarea id="infoCaptureNotes" rows="4"></textarea></label>
 
         <div class="button-row">
           <button id="saveInfoBtn" type="button">Save Target Info</button>
@@ -147,9 +100,12 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     <script define:vars={{ adminApiUrl }}>
       const result = document.getElementById("result");
       const statusGrid = document.getElementById("statusGrid");
+      const fileList = document.getElementById("fileList");
+      const hiddenList = document.getElementById("hiddenList");
 
       const uploadBtn = document.getElementById("uploadBtn");
       const listBtn = document.getElementById("listBtn");
+      const listHiddenBtn = document.getElementById("listHiddenBtn");
       const loadInfoBtn = document.getElementById("loadInfoBtn");
       const saveInfoBtn = document.getElementById("saveInfoBtn");
       const redeployBtn = document.getElementById("redeployBtn");
@@ -157,7 +113,6 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
       const fileInput = document.getElementById("file");
       const preview = document.getElementById("preview");
-      const fileList = document.getElementById("fileList");
 
       const infoFields = {
         name: document.getElementById("infoName"),
@@ -208,21 +163,29 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
       async function readResponse(response) {
         const text = await response.text();
-
         try {
           return JSON.parse(text);
         } catch {
-          return {
-            ok: response.ok,
-            status: response.status,
-            responseText: text || "No response body"
-          };
+          return { ok: response.ok, status: response.status, responseText: text || "No response body" };
         }
+      }
+
+      async function api(path, options = {}) {
+        const response = await fetch(`${adminApiUrl}${path}`, {
+          ...options,
+          headers: {
+            Authorization: `Bearer ${getToken()}`,
+            ...(options.headers || {})
+          }
+        });
+
+        const data = await readResponse(response);
+        if (!response.ok) throw { response, data };
+        return data;
       }
 
       function formatDate(value) {
         if (!value) return "Never";
-
         try {
           return new Date(value).toLocaleString();
         } catch {
@@ -232,39 +195,14 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
       function renderStatus(status) {
         statusGrid.innerHTML = `
-          <div class="status-card">
-            <span>Last redeploy requested</span>
-            <strong>${formatDate(status.lastRedeployRequestedAt)}</strong>
-          </div>
-
-          <div class="status-card">
-            <span>Last redeploy status</span>
-            <strong>${status.lastRedeployStatus || "Unknown"}</strong>
-          </div>
-
-          <div class="status-card">
-            <span>Last upload</span>
-            <strong>${formatDate(status.lastUploadAt)}</strong>
-            <code>${status.lastUploadKey || ""}</code>
-          </div>
-
-          <div class="status-card">
-            <span>Last main image</span>
-            <strong>${formatDate(status.lastMainImageAt)}</strong>
-            <code>${status.lastMainImageKey || ""}</code>
-          </div>
-
-          <div class="status-card">
-            <span>Last hidden file</span>
-            <strong>${formatDate(status.lastHideAt)}</strong>
-            <code>${status.lastHideKey || ""}</code>
-          </div>
-
-          <div class="status-card">
-            <span>Last info save</span>
-            <strong>${formatDate(status.lastInfoSaveAt)}</strong>
-            <code>${status.lastInfoFolder || ""}</code>
-          </div>
+          <div class="status-card"><span>Last redeploy requested</span><strong>${formatDate(status.lastRedeployRequestedAt)}</strong></div>
+          <div class="status-card"><span>Last redeploy status</span><strong>${status.lastRedeployStatus || "Unknown"}</strong></div>
+          <div class="status-card"><span>Last upload</span><strong>${formatDate(status.lastUploadAt)}</strong><code>${status.lastUploadKey || ""}</code></div>
+          <div class="status-card"><span>Last main image</span><strong>${formatDate(status.lastMainImageAt)}</strong><code>${status.lastMainImageKey || ""}</code></div>
+          <div class="status-card"><span>Last hidden file</span><strong>${formatDate(status.lastHideAt)}</strong><code>${status.lastHideKey || ""}</code></div>
+          <div class="status-card"><span>Last restore</span><strong>${formatDate(status.lastRestoreAt)}</strong><code>${status.lastRestoreKey || ""}</code></div>
+          <div class="status-card"><span>Last delete</span><strong>${formatDate(status.lastDeleteAt)}</strong><code>${status.lastDeleteKey || ""}</code></div>
+          <div class="status-card"><span>Last info save</span><strong>${formatDate(status.lastInfoSaveAt)}</strong><code>${status.lastInfoFolder || ""}</code></div>
         `;
       }
 
@@ -273,41 +211,23 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
         try {
           refreshStatusBtn.disabled = true;
-          refreshStatusBtn.textContent = "Refreshing...";
-
-          const response = await fetch(`${adminApiUrl}/status`, {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${getToken()}`
-            }
-          });
-
-          const data = await readResponse(response);
-
-          if (!response.ok) {
-            show({ ok: false, message: "Status failed", details: data });
-            return;
-          }
-
+          const data = await api("/status");
           renderStatus(data.status || {});
           show(data);
         } catch (error) {
-          show(`Status failed: ${error.message}`);
+          show({ ok: false, message: "Status failed", details: error.data || error.message });
         } finally {
           refreshStatusBtn.disabled = false;
-          refreshStatusBtn.textContent = "Refresh Status";
         }
       }
 
       fileInput.addEventListener("change", () => {
         const file = fileInput.files[0];
-
         if (!file) {
           preview.style.display = "none";
           preview.src = "";
           return;
         }
-
         preview.src = URL.createObjectURL(file);
         preview.style.display = "block";
       });
@@ -319,70 +239,46 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
         try {
           listBtn.disabled = true;
-          listBtn.textContent = "Listing...";
           show(`Listing files in ${folder}...`);
 
-          const response = await fetch(
-            `${adminApiUrl}/list?folder=${encodeURIComponent(folder)}`,
-            {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${getToken()}`
-              }
-            }
-          );
-
-          const data = await readResponse(response);
-
-          if (!response.ok) {
-            show({
-              ok: false,
-              message: "List failed",
-              status: response.status,
-              details: data
-            });
-            return;
-          }
-
+          const data = await api(`/list?folder=${encodeURIComponent(folder)}`);
           renderFileList(data.files || []);
           show(data);
         } catch (error) {
-          show(`List failed: ${error.message}`);
+          show({ ok: false, message: "List failed", details: error.data || error.message });
         } finally {
           listBtn.disabled = false;
-          listBtn.textContent = "List files in folder";
         }
       }
 
       function renderFileList(files) {
         if (!files.length) {
-          fileList.innerHTML =
-            `<p class="muted">No image files found in this folder.</p>`;
+          fileList.innerHTML = `<p class="muted">No image files found in this folder.</p>`;
           return;
         }
 
-        fileList.innerHTML = files
-          .map(
-            (file) => `
-              <div class="file-card ${file.isMain ? "main-file" : ""}">
-                <img src="${file.url}" alt="${file.filename}" />
-                <div class="file-info">
-                  <strong>${file.filename} ${file.isMain ? "⭐ Main" : ""}</strong>
-                  <code>${file.key}</code>
-                  <a href="${file.url}" target="_blank" rel="noopener noreferrer">View full image</a>
-                </div>
-                <div class="file-actions">
-                  <button class="make-main-btn" data-key="${file.key}" type="button">
-                    Make Main
-                  </button>
-                  <button class="hide-file-btn" data-key="${file.key}" type="button">
-                    Hide
-                  </button>
-                </div>
-              </div>
-            `
-          )
-          .join("");
+        fileList.innerHTML = files.map((file) => `
+          <div class="file-card ${file.isMain ? "main-file" : ""}">
+            <img src="${file.url}" alt="${file.filename}" />
+            <div class="file-info">
+              <strong>${file.filename} ${file.isMain ? "⭐ Main" : ""}</strong>
+              <code>${file.key}</code>
+              <a href="${file.url}" target="_blank" rel="noopener noreferrer">View full image</a>
+            </div>
+            <div class="file-actions">
+              <button class="make-main-btn" data-key="${file.key}" type="button">Make Main</button>
+              <button class="hide-file-btn" data-key="${file.key}" type="button">Hide</button>
+            </div>
+          </div>
+        `).join("");
+
+        document.querySelectorAll(".make-main-btn").forEach((button) => {
+          button.addEventListener("click", async () => {
+            await makeMainFile(button.dataset.key);
+            await listFiles();
+            await refreshStatus();
+          });
+        });
 
         document.querySelectorAll(".hide-file-btn").forEach((button) => {
           button.addEventListener("click", async () => {
@@ -391,11 +287,59 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
             await refreshStatus();
           });
         });
+      }
 
-        document.querySelectorAll(".make-main-btn").forEach((button) => {
+      async function listHiddenFiles() {
+        if (!requireBasics({ requireFolder: false })) return;
+
+        try {
+          listHiddenBtn.disabled = true;
+          show("Listing hidden files...");
+
+          const data = await api("/hidden");
+          renderHiddenList(data.files || []);
+          show(data);
+        } catch (error) {
+          show({ ok: false, message: "Hidden list failed", details: error.data || error.message });
+        } finally {
+          listHiddenBtn.disabled = false;
+        }
+      }
+
+      function renderHiddenList(files) {
+        if (!files.length) {
+          hiddenList.innerHTML = `<p class="muted">No hidden files found.</p>`;
+          return;
+        }
+
+        hiddenList.innerHTML = files.map((file) => `
+          <div class="file-card hidden-file">
+            <img src="${file.url}" alt="${file.filename}" />
+            <div class="file-info">
+              <strong>${file.filename}</strong>
+              <code>${file.hiddenKey}</code>
+              <small>Restore to: ${file.originalKey}</small>
+              <a href="${file.url}" target="_blank" rel="noopener noreferrer">View hidden image</a>
+            </div>
+            <div class="file-actions">
+              <button class="restore-file-btn" data-key="${file.hiddenKey}" type="button">Restore</button>
+              <button class="delete-file-btn" data-key="${file.hiddenKey}" type="button">Delete Forever</button>
+            </div>
+          </div>
+        `).join("");
+
+        document.querySelectorAll(".restore-file-btn").forEach((button) => {
           button.addEventListener("click", async () => {
-            await makeMainFile(button.dataset.key);
-            await listFiles();
+            await restoreHiddenFile(button.dataset.key);
+            await listHiddenFiles();
+            await refreshStatus();
+          });
+        });
+
+        document.querySelectorAll(".delete-file-btn").forEach((button) => {
+          button.addEventListener("click", async () => {
+            await deleteHiddenFile(button.dataset.key);
+            await listHiddenFiles();
             await refreshStatus();
           });
         });
@@ -405,35 +349,14 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         if (!confirm(`Make this the main image?\n\n${key}`)) return;
 
         try {
-          show(`Setting main image from ${key}...`);
-
-          const response = await fetch(`${adminApiUrl}/make-main`, {
+          const data = await api("/make-main", {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${getToken()}`,
-              "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ key })
           });
-
-          const data = await readResponse(response);
-
-          if (!response.ok) {
-            show({
-              ok: false,
-              message: "Make main failed",
-              status: response.status,
-              details: data
-            });
-            return;
-          }
-
-          show({
-            ...data,
-            note: "Main image updated. Click Redeploy Site for the homepage/target page to update."
-          });
+          show({ ...data, note: "Click Redeploy Site for the public site to update." });
         } catch (error) {
-          show(`Make main failed: ${error.message}`);
+          show({ ok: false, message: "Make main failed", details: error.data || error.message });
         }
       }
 
@@ -441,32 +364,44 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         if (!confirm(`Hide this file?\n\n${key}`)) return;
 
         try {
-          show(`Hiding ${key}...`);
-
-          const response = await fetch(`${adminApiUrl}/hide`, {
+          const data = await api("/hide", {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${getToken()}`,
-              "Content-Type": "application/json"
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ key })
           });
-
-          const data = await readResponse(response);
-
-          if (!response.ok) {
-            show({
-              ok: false,
-              message: "Hide failed",
-              status: response.status,
-              details: data
-            });
-            return;
-          }
-
           show(data);
         } catch (error) {
-          show(`Hide failed: ${error.message}`);
+          show({ ok: false, message: "Hide failed", details: error.data || error.message });
+        }
+      }
+
+      async function restoreHiddenFile(hiddenKey) {
+        if (!confirm(`Restore this file?\n\n${hiddenKey}`)) return;
+
+        try {
+          const data = await api("/restore", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hiddenKey })
+          });
+          show({ ...data, note: "Click Redeploy Site for the public site to update." });
+        } catch (error) {
+          show({ ok: false, message: "Restore failed", details: error.data || error.message });
+        }
+      }
+
+      async function deleteHiddenFile(hiddenKey) {
+        if (!confirm(`Permanently delete this hidden file?\n\n${hiddenKey}\n\nThis cannot be undone.`)) return;
+
+        try {
+          const data = await api("/delete-hidden", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hiddenKey })
+          });
+          show(data);
+        } catch (error) {
+          show({ ok: false, message: "Delete failed", details: error.data || error.message });
         }
       }
 
@@ -486,30 +421,20 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
         try {
           uploadBtn.disabled = true;
-          uploadBtn.textContent = "Uploading...";
           show(`Uploading ${key}...`);
 
-          const response = await fetch(
-            `${adminApiUrl}/upload?key=${encodeURIComponent(key)}`,
-            {
-              method: "PUT",
-              headers: {
-                Authorization: `Bearer ${getToken()}`,
-                "Content-Type": file.type || "application/octet-stream"
-              },
-              body: file
-            }
-          );
+          const response = await fetch(`${adminApiUrl}/upload?key=${encodeURIComponent(key)}`, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${getToken()}`,
+              "Content-Type": file.type || "application/octet-stream"
+            },
+            body: file
+          });
 
           const data = await readResponse(response);
-
           if (!response.ok) {
-            show({
-              ok: false,
-              message: "Upload failed",
-              status: response.status,
-              details: data
-            });
+            show({ ok: false, message: "Upload failed", details: data });
             return;
           }
 
@@ -520,7 +445,6 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           show(`Upload failed: ${error.message}`);
         } finally {
           uploadBtn.disabled = false;
-          uploadBtn.textContent = "Upload";
         }
       });
 
@@ -530,31 +454,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         const folder = getFolder();
 
         try {
-          loadInfoBtn.disabled = true;
-          loadInfoBtn.textContent = "Loading...";
-
-          const response = await fetch(
-            `${adminApiUrl}/info?folder=${encodeURIComponent(folder)}`,
-            {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${getToken()}`
-              }
-            }
-          );
-
-          const data = await readResponse(response);
-
-          if (!response.ok) {
-            show({
-              ok: false,
-              message: "Load info failed",
-              status: response.status,
-              details: data
-            });
-            return;
-          }
-
+          const data = await api(`/info?folder=${encodeURIComponent(folder)}`);
           const info = data.info || {};
 
           Object.entries(infoFields).forEach(([key, element]) => {
@@ -563,10 +463,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
           show(data);
         } catch (error) {
-          show(`Load info failed: ${error.message}`);
-        } finally {
-          loadInfoBtn.disabled = false;
-          loadInfoBtn.textContent = "Load Target Info";
+          show({ ok: false, message: "Load info failed", details: error.data || error.message });
         }
       }
 
@@ -574,48 +471,23 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         if (!requireBasics()) return;
 
         const folder = getFolder();
-
         const info = {};
+
         Object.entries(infoFields).forEach(([key, element]) => {
           info[key] = element.value.trim();
         });
 
         try {
-          saveInfoBtn.disabled = true;
-          saveInfoBtn.textContent = "Saving...";
-          show(`Saving info.json in ${folder}...`);
-
-          const response = await fetch(
-            `${adminApiUrl}/info?folder=${encodeURIComponent(folder)}`,
-            {
-              method: "PUT",
-              headers: {
-                Authorization: `Bearer ${getToken()}`,
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify(info)
-            }
-          );
-
-          const data = await readResponse(response);
-
-          if (!response.ok) {
-            show({
-              ok: false,
-              message: "Save info failed",
-              status: response.status,
-              details: data
-            });
-            return;
-          }
+          const data = await api(`/info?folder=${encodeURIComponent(folder)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(info)
+          });
 
           show(data);
           await refreshStatus();
         } catch (error) {
-          show(`Save info failed: ${error.message}`);
-        } finally {
-          saveInfoBtn.disabled = false;
-          saveInfoBtn.textContent = "Save Target Info";
+          show({ ok: false, message: "Save info failed", details: error.data || error.message });
         }
       }
 
@@ -624,28 +496,9 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
         try {
           redeployBtn.disabled = true;
-          redeployBtn.textContent = "Redeploying...";
           show("Requesting site redeploy...");
 
-          const response = await fetch(`${adminApiUrl}/redeploy`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${getToken()}`
-            }
-          });
-
-          const data = await readResponse(response);
-
-          if (!response.ok) {
-            show({
-              ok: false,
-              message: "Redeploy failed",
-              status: response.status,
-              details: data
-            });
-            return;
-          }
-
+          const data = await api("/redeploy", { method: "POST" });
           show({
             ...data,
             note: "Redeploy requested. Wait for Cloudflare Pages to finish, then refresh the public site."
@@ -653,14 +506,14 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
           await refreshStatus();
         } catch (error) {
-          show(`Redeploy failed: ${error.message}`);
+          show({ ok: false, message: "Redeploy failed", details: error.data || error.message });
         } finally {
           redeployBtn.disabled = false;
-          redeployBtn.textContent = "Redeploy Site";
         }
       });
 
       listBtn.addEventListener("click", listFiles);
+      listHiddenBtn.addEventListener("click", listHiddenFiles);
       loadInfoBtn.addEventListener("click", loadInfo);
       saveInfoBtn.addEventListener("click", saveInfo);
       refreshStatusBtn.addEventListener("click", refreshStatus);
@@ -682,9 +535,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     padding: 32px 20px;
   }
 
-  a {
-    color: #9db7ff;
-  }
+  a { color: #9db7ff; }
 
   .panel {
     background: rgba(18, 24, 39, 0.85);
@@ -718,12 +569,16 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     font: inherit;
   }
 
-  textarea {
-    resize: vertical;
-  }
+  textarea { resize: vertical; }
 
   code {
     color: #9db7ff;
+    overflow-wrap: anywhere;
+  }
+
+  small {
+    color: #c7d2ea;
+    overflow-wrap: anywhere;
   }
 
   .form-grid,
@@ -778,12 +633,17 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     cursor: wait;
   }
 
-  .make-main-btn {
+  .make-main-btn,
+  .restore-file-btn {
     background: #26335f;
   }
 
   .hide-file-btn {
     background: #3b1c28;
+  }
+
+  .delete-file-btn {
+    background: #5a1420;
   }
 
   .preview {
@@ -816,6 +676,10 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   .file-card.main-file {
     border-color: rgba(255, 220, 120, 0.75);
     background: rgba(40, 32, 12, 0.65);
+  }
+
+  .file-card.hidden-file {
+    border-color: rgba(255, 120, 120, 0.45);
   }
 
   .file-card img {

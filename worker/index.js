@@ -2,7 +2,7 @@ function corsHeaders() {
   return {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type,Authorization"
   };
 }
@@ -57,9 +57,7 @@ async function readJsonObject(env, key, fallback = null) {
 
 async function putJson(env, key, data) {
   await env.ASTRO_PHOTO_BUCKET.put(key, JSON.stringify(data, null, 2), {
-    httpMetadata: {
-      contentType: "application/json"
-    }
+    httpMetadata: { contentType: "application/json" }
   });
 }
 
@@ -69,6 +67,10 @@ async function getStatus(env) {
     lastUploadKey: null,
     lastHideAt: null,
     lastHideKey: null,
+    lastRestoreAt: null,
+    lastRestoreKey: null,
+    lastDeleteAt: null,
+    lastDeleteKey: null,
     lastRedeployRequestedAt: null,
     lastRedeployStatus: null,
     lastInfoSaveAt: null,
@@ -90,33 +92,35 @@ async function updateStatus(env, patch) {
   return updated;
 }
 
+async function moveObject(env, fromKey, toKey) {
+  const object = await env.ASTRO_PHOTO_BUCKET.get(fromKey);
+  if (!object) return false;
+
+  await env.ASTRO_PHOTO_BUCKET.put(toKey, object.body, {
+    httpMetadata: object.httpMetadata
+  });
+
+  await env.ASTRO_PHOTO_BUCKET.delete(fromKey);
+  return true;
+}
+
 export default {
   async fetch(request, env) {
-    if (request.method === "OPTIONS") {
-      return json({ ok: true });
-    }
+    if (request.method === "OPTIONS") return json({ ok: true });
 
-    if (!checkAuth(request, env)) {
-      return unauthorized();
-    }
+    if (!checkAuth(request, env)) return unauthorized();
 
     const url = new URL(request.url);
 
     if (url.pathname === "/status" && request.method === "GET") {
-      const status = await getStatus(env);
-      return json({ ok: true, status });
+      return json({ ok: true, status: await getStatus(env) });
     }
 
     if (url.pathname === "/list" && request.method === "GET") {
       const folder = cleanFolder(url.searchParams.get("folder"));
+      if (!folder) return json({ ok: false, error: "Missing folder" }, 400);
 
-      if (!folder) {
-        return json({ ok: false, error: "Missing folder" }, 400);
-      }
-
-      const listed = await env.ASTRO_PHOTO_BUCKET.list({
-        prefix: `${folder}/`
-      });
+      const listed = await env.ASTRO_PHOTO_BUCKET.list({ prefix: `${folder}/` });
 
       const files = listed.objects
         .filter((object) => isImageKey(object.key))
@@ -138,24 +142,35 @@ export default {
       return json({ ok: true, folder, files });
     }
 
+    if (url.pathname === "/hidden" && request.method === "GET") {
+      const listed = await env.ASTRO_PHOTO_BUCKET.list({ prefix: "_hidden/" });
+
+      const files = listed.objects
+        .filter((object) => isImageKey(object.key))
+        .map((object) => ({
+          hiddenKey: object.key,
+          originalKey: object.key.replace(/^_hidden\//, ""),
+          filename: object.key.split("/").pop(),
+          size: object.size,
+          uploaded: object.uploaded,
+          url: makePublicUrl(env, object.key)
+        }))
+        .sort((a, b) => a.hiddenKey.localeCompare(b.hiddenKey));
+
+      return json({ ok: true, files });
+    }
+
     if (url.pathname === "/upload" && request.method === "PUT") {
       const key = url.searchParams.get("key");
 
-      if (!key) {
-        return json({ ok: false, error: "Missing key" }, 400);
-      }
-
+      if (!key) return json({ ok: false, error: "Missing key" }, 400);
       if (!isImageKey(key)) {
-        return json(
-          { ok: false, error: "Only jpg, jpeg, png, and webp are allowed" },
-          400
-        );
+        return json({ ok: false, error: "Only jpg, jpeg, png, and webp are allowed" }, 400);
       }
 
       await env.ASTRO_PHOTO_BUCKET.put(key, request.body, {
         httpMetadata: {
-          contentType:
-            request.headers.get("Content-Type") || "application/octet-stream"
+          contentType: request.headers.get("Content-Type") || "application/octet-stream"
         }
       });
 
@@ -174,19 +189,14 @@ export default {
     }
 
     if (url.pathname === "/make-main" && request.method === "POST") {
-      const body = await request.json();
-      const sourceKey = body.key;
+      const { key: sourceKey } = await request.json();
 
-      if (!sourceKey) {
-        return json({ ok: false, error: "Missing key" }, 400);
-      }
-
+      if (!sourceKey) return json({ ok: false, error: "Missing key" }, 400);
       if (!isImageKey(sourceKey)) {
         return json({ ok: false, error: "Selected file is not an image" }, 400);
       }
 
       const sourceObject = await env.ASTRO_PHOTO_BUCKET.get(sourceKey);
-
       if (!sourceObject) {
         return json({ ok: false, error: "Source file not found", key: sourceKey }, 404);
       }
@@ -215,25 +225,14 @@ export default {
     }
 
     if (url.pathname === "/hide" && request.method === "POST") {
-      const body = await request.json();
-      const key = body.key;
+      const { key } = await request.json();
 
-      if (!key) {
-        return json({ ok: false, error: "Missing key" }, 400);
-      }
+      if (!key) return json({ ok: false, error: "Missing key" }, 400);
 
       const hiddenKey = `_hidden/${key}`;
-      const object = await env.ASTRO_PHOTO_BUCKET.get(key);
+      const moved = await moveObject(env, key, hiddenKey);
 
-      if (!object) {
-        return json({ ok: false, error: "File not found", key }, 404);
-      }
-
-      await env.ASTRO_PHOTO_BUCKET.put(hiddenKey, object.body, {
-        httpMetadata: object.httpMetadata
-      });
-
-      await env.ASTRO_PHOTO_BUCKET.delete(key);
+      if (!moved) return json({ ok: false, error: "File not found", key }, 404);
 
       const status = await updateStatus(env, {
         lastHideAt: new Date().toISOString(),
@@ -249,12 +248,61 @@ export default {
       });
     }
 
+    if (url.pathname === "/restore" && request.method === "POST") {
+      const { hiddenKey } = await request.json();
+
+      if (!hiddenKey) return json({ ok: false, error: "Missing hiddenKey" }, 400);
+      if (!hiddenKey.startsWith("_hidden/")) {
+        return json({ ok: false, error: "Invalid hidden key" }, 400);
+      }
+
+      const originalKey = hiddenKey.replace(/^_hidden\//, "");
+      const moved = await moveObject(env, hiddenKey, originalKey);
+
+      if (!moved) {
+        return json({ ok: false, error: "Hidden file not found", hiddenKey }, 404);
+      }
+
+      const status = await updateStatus(env, {
+        lastRestoreAt: new Date().toISOString(),
+        lastRestoreKey: originalKey
+      });
+
+      return json({
+        ok: true,
+        action: "restored",
+        hiddenKey,
+        originalKey,
+        status
+      });
+    }
+
+    if (url.pathname === "/delete-hidden" && request.method === "POST") {
+      const { hiddenKey } = await request.json();
+
+      if (!hiddenKey) return json({ ok: false, error: "Missing hiddenKey" }, 400);
+      if (!hiddenKey.startsWith("_hidden/")) {
+        return json({ ok: false, error: "Invalid hidden key" }, 400);
+      }
+
+      await env.ASTRO_PHOTO_BUCKET.delete(hiddenKey);
+
+      const status = await updateStatus(env, {
+        lastDeleteAt: new Date().toISOString(),
+        lastDeleteKey: hiddenKey
+      });
+
+      return json({
+        ok: true,
+        action: "deleted_forever",
+        hiddenKey,
+        status
+      });
+    }
+
     if (url.pathname === "/info" && request.method === "GET") {
       const folder = cleanFolder(url.searchParams.get("folder"));
-
-      if (!folder) {
-        return json({ ok: false, error: "Missing folder" }, 400);
-      }
+      if (!folder) return json({ ok: false, error: "Missing folder" }, 400);
 
       const info = await readJsonObject(env, `${folder}/info.json`, {
         name: folder.split("/").pop() || "",
@@ -276,13 +324,9 @@ export default {
 
     if (url.pathname === "/info" && request.method === "PUT") {
       const folder = cleanFolder(url.searchParams.get("folder"));
-
-      if (!folder) {
-        return json({ ok: false, error: "Missing folder" }, 400);
-      }
+      if (!folder) return json({ ok: false, error: "Missing folder" }, 400);
 
       const info = await request.json();
-
       await putJson(env, `${folder}/info.json`, info);
 
       const status = await updateStatus(env, {
@@ -302,15 +346,10 @@ export default {
 
     if (url.pathname === "/redeploy" && request.method === "POST") {
       if (!env.PAGES_DEPLOY_HOOK_URL) {
-        return json(
-          { ok: false, error: "Missing PAGES_DEPLOY_HOOK_URL" },
-          500
-        );
+        return json({ ok: false, error: "Missing PAGES_DEPLOY_HOOK_URL" }, 500);
       }
 
-      const response = await fetch(env.PAGES_DEPLOY_HOOK_URL, {
-        method: "POST"
-      });
+      const response = await fetch(env.PAGES_DEPLOY_HOOK_URL, { method: "POST" });
 
       const status = await updateStatus(env, {
         lastRedeployRequestedAt: new Date().toISOString(),
