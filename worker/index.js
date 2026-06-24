@@ -76,7 +76,9 @@ async function getStatus(env) {
     lastInfoSaveAt: null,
     lastInfoFolder: null,
     lastMainImageAt: null,
-    lastMainImageKey: null
+    lastMainImageKey: null,
+    lastObservationAt: null,
+    lastObservationFolder: null
   });
 }
 
@@ -102,6 +104,23 @@ async function moveObject(env, fromKey, toKey) {
 
   await env.ASTRO_PHOTO_BUCKET.delete(fromKey);
   return true;
+}
+
+async function getObservations(env, folder) {
+  return await readJsonObject(env, `${folder}/observations.json`, []);
+}
+
+function summarizeObservations(observations) {
+  const totalMinutes = observations.reduce(
+    (sum, item) => sum + Number(item.minutes || 0),
+    0
+  );
+
+  return {
+    totalMinutes,
+    totalHours: Math.round((totalMinutes / 60) * 10) / 10,
+    sessions: observations.length
+  };
 }
 
 export default {
@@ -341,6 +360,75 @@ export default {
         key: `${folder}/info.json`,
         info,
         status
+      });
+    }
+
+    if (url.pathname === "/observations" && request.method === "GET") {
+      const folder = cleanFolder(url.searchParams.get("folder"));
+      if (!folder) return json({ ok: false, error: "Missing folder" }, 400);
+
+      const observations = await getObservations(env, folder);
+
+      return json({
+        ok: true,
+        folder,
+        observations,
+        summary: summarizeObservations(observations)
+      });
+    }
+
+    if (url.pathname === "/observations" && request.method === "POST") {
+      const folder = cleanFolder(url.searchParams.get("folder"));
+      if (!folder) return json({ ok: false, error: "Missing folder" }, 400);
+
+      const body = await request.json();
+      const observations = await getObservations(env, folder);
+
+      const observation = {
+        id: crypto.randomUUID(),
+        date: body.date || new Date().toISOString().slice(0, 10),
+        minutes: Number(body.minutes || 0),
+        subSeconds: Number(body.subSeconds || 0),
+        notes: body.notes || "",
+        createdAt: new Date().toISOString()
+      };
+
+      observations.push(observation);
+
+      await putJson(env, `${folder}/observations.json`, observations);
+
+      const status = await updateStatus(env, {
+        lastObservationAt: new Date().toISOString(),
+        lastObservationFolder: folder
+      });
+
+      return json({
+        ok: true,
+        action: "observation_added",
+        folder,
+        observation,
+        observations,
+        summary: summarizeObservations(observations),
+        status
+      });
+    }
+
+    if (url.pathname === "/delete-observation" && request.method === "POST") {
+      const folder = cleanFolder(url.searchParams.get("folder"));
+      if (!folder) return json({ ok: false, error: "Missing folder" }, 400);
+
+      const body = await request.json();
+      const observations = await getObservations(env, folder);
+      const updated = observations.filter((item) => item.id !== body.id);
+
+      await putJson(env, `${folder}/observations.json`, updated);
+
+      return json({
+        ok: true,
+        action: "observation_deleted",
+        folder,
+        observations: updated,
+        summary: summarizeObservations(updated)
       });
     }
 

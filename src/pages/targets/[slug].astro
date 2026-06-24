@@ -2,7 +2,8 @@
 import {
   getDiscoveredTargets,
   getImagesForFolder,
-  getDownloadsForFolder
+  getDownloadsForFolder,
+  getObservationsForFolder
 } from "../../lib/r2-images.js";
 
 export async function getStaticPaths() {
@@ -12,6 +13,7 @@ export async function getStaticPaths() {
     targets.map(async (target) => {
       const images = await getImagesForFolder(target.folder);
       const downloads = await getDownloadsForFolder(target.folder);
+      const observationData = await getObservationsForFolder(target.folder);
 
       return {
         params: { slug: target.slug },
@@ -19,7 +21,9 @@ export async function getStaticPaths() {
           target: {
             ...target,
             images,
-            downloads
+            downloads,
+            observations: observationData.observations,
+            observationSummary: observationData.summary
           }
         }
       };
@@ -122,6 +126,13 @@ const firstImage = target.images?.[0];
                 <strong>{target.location}</strong>
               </div>
             )}
+
+            {target.observationSummary?.sessions > 0 && (
+              <div class="info-card">
+                <span>Total integration</span>
+                <strong>{target.observationSummary.totalHours} hours</strong>
+              </div>
+            )}
           </section>
 
           {target.whatYouAreSeeing && (
@@ -142,6 +153,29 @@ const firstImage = target.images?.[0];
             <section class="extra">
               <h2>How I captured it</h2>
               <p>{target.captureNotes}</p>
+            </section>
+          )}
+
+          {target.observationSummary?.sessions > 0 && (
+            <section class="extra">
+              <h2>Observation Log</h2>
+              <p>
+                Total integration time:
+                <strong>{target.observationSummary.totalHours} hours</strong>
+                across {target.observationSummary.sessions} sessions.
+              </p>
+
+              <div class="download-list">
+                {target.observations.map((item) => (
+                  <div class="download-card">
+                    <div>
+                      <strong>{item.date} — {item.minutes} minutes</strong>
+                      <span>{item.subSeconds} second exposures</span>
+                      {item.notes && <p>{item.notes}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
 
@@ -188,14 +222,7 @@ const firstImage = target.images?.[0];
         </div>
 
         {target.images.length > 1 && (
-          <button
-            id="lightboxPrev"
-            class="lightbox-nav lightbox-prev"
-            type="button"
-            aria-label="Previous image"
-          >
-            ←
-          </button>
+          <button id="lightboxPrev" class="lightbox-nav lightbox-prev" type="button">←</button>
         )}
 
         <div class="lightbox-image-wrap">
@@ -203,14 +230,7 @@ const firstImage = target.images?.[0];
         </div>
 
         {target.images.length > 1 && (
-          <button
-            id="lightboxNext"
-            class="lightbox-nav lightbox-next"
-            type="button"
-            aria-label="Next image"
-          >
-            →
-          </button>
+          <button id="lightboxNext" class="lightbox-nav lightbox-next" type="button">→</button>
         )}
 
         <p id="lightboxLabel" class="lightbox-label">{firstImage.label}</p>
@@ -253,7 +273,6 @@ const firstImage = target.images?.[0];
 
         function updateZoom() {
           if (!lightboxImage) return;
-
           lightboxImage.style.transform = `scale(${zoomLevel})`;
           lightboxImage.style.cursor = zoomLevel > 1 ? "zoom-out" : "zoom-in";
         }
@@ -275,10 +294,7 @@ const firstImage = target.images?.[0];
 
         function updateActiveThumb() {
           thumbs.forEach((thumb) => thumb.classList.remove("active"));
-
-          if (thumbs[currentIndex]) {
-            thumbs[currentIndex].classList.add("active");
-          }
+          if (thumbs[currentIndex]) thumbs[currentIndex].classList.add("active");
         }
 
         function showImage(index) {
@@ -290,33 +306,22 @@ const firstImage = target.images?.[0];
             mainImage.alt = images[currentIndex].label;
           }
 
-          if (imageLabel) {
-            imageLabel.textContent = images[currentIndex].label;
-          }
-
-          if (counter) {
-            counter.textContent = `${currentIndex + 1} / ${images.length}`;
-          }
+          if (imageLabel) imageLabel.textContent = images[currentIndex].label;
+          if (counter) counter.textContent = `${currentIndex + 1} / ${images.length}`;
 
           if (lightboxImage) {
             lightboxImage.src = images[currentIndex].url;
             lightboxImage.alt = images[currentIndex].label;
           }
 
-          if (lightboxLabel) {
-            lightboxLabel.textContent = images[currentIndex].label;
-          }
-
-          if (fullResolutionLink) {
-            fullResolutionLink.href = images[currentIndex].url;
-          }
+          if (lightboxLabel) lightboxLabel.textContent = images[currentIndex].label;
+          if (fullResolutionLink) fullResolutionLink.href = images[currentIndex].url;
 
           updateActiveThumb();
         }
 
         function openLightbox() {
           if (!lightbox) return;
-
           resetZoom();
           lightbox.classList.add("open");
           lightbox.setAttribute("aria-hidden", "false");
@@ -325,57 +330,40 @@ const firstImage = target.images?.[0];
 
         function closeLightbox() {
           if (!lightbox) return;
-
           resetZoom();
           lightbox.classList.remove("open");
           lightbox.setAttribute("aria-hidden", "true");
           document.body.classList.remove("lightbox-open");
         }
 
-        if (mainImage) {
-          mainImage.addEventListener("click", openLightbox);
-        }
+        if (mainImage) mainImage.addEventListener("click", openLightbox);
 
         if (lightboxImage) {
           lightboxImage.addEventListener("click", () => {
-            if (zoomLevel === 1) {
-              zoomIn();
-            } else {
-              resetZoom();
-            }
+            zoomLevel === 1 ? zoomIn() : resetZoom();
           });
         }
 
-        if (zoomInBtn) {
-          zoomInBtn.addEventListener("click", (event) => {
-            event.stopPropagation();
-            zoomIn();
-          });
-        }
+        if (zoomInBtn) zoomInBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          zoomIn();
+        });
 
-        if (zoomOutBtn) {
-          zoomOutBtn.addEventListener("click", (event) => {
-            event.stopPropagation();
-            zoomOut();
-          });
-        }
+        if (zoomOutBtn) zoomOutBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          zoomOut();
+        });
 
-        if (zoomResetBtn) {
-          zoomResetBtn.addEventListener("click", (event) => {
-            event.stopPropagation();
-            resetZoom();
-          });
-        }
+        if (zoomResetBtn) zoomResetBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          resetZoom();
+        });
 
-        if (lightboxClose) {
-          lightboxClose.addEventListener("click", closeLightbox);
-        }
+        if (lightboxClose) lightboxClose.addEventListener("click", closeLightbox);
 
         if (lightbox) {
           lightbox.addEventListener("click", (event) => {
-            if (event.target === lightbox) {
-              closeLightbox();
-            }
+            if (event.target === lightbox) closeLightbox();
           });
         }
 
@@ -412,29 +400,12 @@ const firstImage = target.images?.[0];
         document.addEventListener("keydown", (event) => {
           const isOpen = lightbox?.classList.contains("open");
 
-          if (event.key === "Escape") {
-            closeLightbox();
-          }
-
-          if (event.key === "ArrowLeft") {
-            showImage((currentIndex - 1 + images.length) % images.length);
-          }
-
-          if (event.key === "ArrowRight") {
-            showImage((currentIndex + 1) % images.length);
-          }
-
-          if (isOpen && (event.key === "+" || event.key === "=")) {
-            zoomIn();
-          }
-
-          if (isOpen && event.key === "-") {
-            zoomOut();
-          }
-
-          if (isOpen && event.key === "0") {
-            resetZoom();
-          }
+          if (event.key === "Escape") closeLightbox();
+          if (event.key === "ArrowLeft") showImage((currentIndex - 1 + images.length) % images.length);
+          if (event.key === "ArrowRight") showImage((currentIndex + 1) % images.length);
+          if (isOpen && (event.key === "+" || event.key === "=")) zoomIn();
+          if (isOpen && event.key === "-") zoomOut();
+          if (isOpen && event.key === "0") resetZoom();
         });
 
         updateActiveThumb();

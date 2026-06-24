@@ -65,7 +65,7 @@ function sortImages(images) {
   return images.sort((a, b) => {
     const score = (name) => {
       const lower = name.toLowerCase();
-      if (lower.includes("main")) return 1;
+      if (lower.match(/\/main\.(jpg|jpeg|png|webp)$/)) return 1;
       if (lower.includes("processed")) return 2;
       if (lower.includes("final")) return 3;
       if (lower.includes("detail")) return 4;
@@ -144,9 +144,27 @@ export async function getDownloadsForFolder(folder) {
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
+export async function getObservationsForFolder(folder) {
+  const data = await getJson(`${folder}/observations.json`);
+  const observations = Array.isArray(data) ? data : [];
+
+  const totalMinutes = observations.reduce(
+    (sum, item) => sum + Number(item.minutes || 0),
+    0
+  );
+
+  return {
+    observations,
+    summary: {
+      totalMinutes,
+      totalHours: Math.round((totalMinutes / 60) * 10) / 10,
+      sessions: observations.length
+    }
+  };
+}
+
 export async function getDiscoveredTargets() {
   const objects = await listObjects("");
-
   const folders = new Set();
 
   for (const object of objects) {
