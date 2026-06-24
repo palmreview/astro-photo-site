@@ -63,6 +63,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         <h2>Files in folder</h2>
         <p class="muted">
           Use <strong>Make Main</strong> to choose which image appears first.
+          Use <strong>Rename</strong> to change a file name inside this folder.
         </p>
 
         <div id="fileList" class="file-list">
@@ -356,6 +357,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           <div class="status-card"><span>Last redeploy status</span><strong>${status.lastRedeployStatus || "Unknown"}</strong></div>
           <div class="status-card"><span>Last upload</span><strong>${formatDate(status.lastUploadAt)}</strong><code>${status.lastUploadKey || ""}</code></div>
           <div class="status-card"><span>Last main image</span><strong>${formatDate(status.lastMainImageAt)}</strong><code>${status.lastMainImageKey || ""}</code></div>
+          <div class="status-card"><span>Last rename</span><strong>${formatDate(status.lastRenameAt)}</strong><code>${status.lastRenameTo || ""}</code></div>
           <div class="status-card"><span>Last hidden file</span><strong>${formatDate(status.lastHideAt)}</strong><code>${status.lastHideKey || ""}</code></div>
           <div class="status-card"><span>Last restore</span><strong>${formatDate(status.lastRestoreAt)}</strong><code>${status.lastRestoreKey || ""}</code></div>
           <div class="status-card"><span>Last delete</span><strong>${formatDate(status.lastDeleteAt)}</strong><code>${status.lastDeleteKey || ""}</code></div>
@@ -421,12 +423,13 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           <div class="file-card ${file.isMain ? "main-file" : ""}">
             <img src="${file.url}" alt="${file.filename}" />
             <div class="file-info">
-              <strong>${file.filename} ${file.isMain ? "⭐ Main" : ""}</strong>
+              <strong>${file.filename} ${file.isMain ? "⭐ Main" : ""} ${file.isSkyMap ? "🗺️ Sky Map" : ""}</strong>
               <code>${file.key}</code>
               <a href="${file.url}" target="_blank" rel="noopener noreferrer">View full image</a>
             </div>
             <div class="file-actions">
               <button class="make-main-btn" data-key="${file.key}" type="button">Make Main</button>
+              <button class="rename-file-btn" data-key="${file.key}" data-filename="${file.filename}" type="button">Rename</button>
               <button class="hide-file-btn" data-key="${file.key}" type="button">Hide</button>
             </div>
           </div>
@@ -435,6 +438,14 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         document.querySelectorAll(".make-main-btn").forEach((button) => {
           button.addEventListener("click", async () => {
             await makeMainFile(button.dataset.key);
+            await listFiles();
+            await refreshStatus();
+          });
+        });
+
+        document.querySelectorAll(".rename-file-btn").forEach((button) => {
+          button.addEventListener("click", async () => {
+            await renameFile(button.dataset.key, button.dataset.filename);
             await listFiles();
             await refreshStatus();
           });
@@ -518,6 +529,30 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           show({ ...data, note: "Click Redeploy Site for the public site to update." });
         } catch (error) {
           show({ ok: false, message: "Make main failed", details: error.data || error.message });
+        }
+      }
+
+      async function renameFile(oldKey, currentFilename) {
+        const newFilename = prompt("Enter new filename:", currentFilename);
+
+        if (!newFilename) return;
+
+        try {
+          const data = await api("/rename", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              oldKey,
+              newFilename
+            })
+          });
+
+          show({
+            ...data,
+            note: "File renamed successfully. Click Redeploy Site for the public site to update."
+          });
+        } catch (error) {
+          show({ ok: false, message: "Rename failed", details: error.data || error.message });
         }
       }
 
@@ -926,7 +961,8 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   }
 
   .make-main-btn,
-  .restore-file-btn {
+  .restore-file-btn,
+  .rename-file-btn {
     background: #26335f;
   }
 
