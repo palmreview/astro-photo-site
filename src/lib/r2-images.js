@@ -34,6 +34,10 @@ function hasExtension(key, extensions) {
   return extensions.some((ext) => lower.endsWith(ext));
 }
 
+function isAnnotatedKey(key) {
+  return /\/annotated\.(jpg|jpeg|png|webp)$/i.test(key);
+}
+
 function makeLabelFromFilename(key) {
   const filename = key.split("/").pop() || key;
   return filename
@@ -69,6 +73,7 @@ function sortImages(images) {
       if (lower.includes("processed")) return 2;
       if (lower.includes("final")) return 3;
       if (lower.includes("detail")) return 4;
+      if (lower.includes("annotated")) return 8;
       if (lower.includes("raw")) return 9;
       return 5;
     };
@@ -120,6 +125,7 @@ export async function getImagesForFolder(folder) {
     .filter((object) => object.Key && hasExtension(object.Key, imageExtensions))
     .filter((object) => !object.Key.includes("/Raw/"))
     .filter((object) => !object.Key.startsWith("_hidden/"))
+    .filter((object) => !isAnnotatedKey(object.Key))
     .map((object) => ({
       key: object.Key,
       url: makePublicUrl(object.Key),
@@ -127,6 +133,23 @@ export async function getImagesForFolder(folder) {
     }));
 
   return sortImages(images);
+}
+
+export async function getAnnotatedImageForFolder(folder) {
+  const objects = await listObjects(folder);
+
+  const annotated = objects
+    .filter((object) => object.Key && hasExtension(object.Key, imageExtensions))
+    .filter((object) => !object.Key.startsWith("_hidden/"))
+    .find((object) => isAnnotatedKey(object.Key));
+
+  if (!annotated?.Key) return null;
+
+  return {
+    key: annotated.Key,
+    url: makePublicUrl(annotated.Key),
+    label: "Annotated View"
+  };
 }
 
 export async function getDownloadsForFolder(folder) {

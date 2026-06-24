@@ -3,7 +3,8 @@ import {
   getDiscoveredTargets,
   getImagesForFolder,
   getDownloadsForFolder,
-  getObservationsForFolder
+  getObservationsForFolder,
+  getAnnotatedImageForFolder
 } from "../../lib/r2-images.js";
 
 export async function getStaticPaths() {
@@ -14,6 +15,7 @@ export async function getStaticPaths() {
       const images = await getImagesForFolder(target.folder);
       const downloads = await getDownloadsForFolder(target.folder);
       const observationData = await getObservationsForFolder(target.folder);
+      const annotatedImage = await getAnnotatedImageForFolder(target.folder);
 
       return {
         params: { slug: target.slug },
@@ -22,6 +24,7 @@ export async function getStaticPaths() {
             ...target,
             images,
             downloads,
+            annotatedImage,
             observations: observationData.observations,
             observationSummary: observationData.summary
           }
@@ -60,6 +63,13 @@ const firstImage = target.images?.[0];
               <p id="imageLabel" class="image-label">
                 {firstImage.label}
               </p>
+
+              {target.annotatedImage && (
+                <div class="view-toggle">
+                  <button id="originalViewBtn" class="active" type="button">Original</button>
+                  <button id="annotatedViewBtn" type="button">Annotated</button>
+                </div>
+              )}
 
               {target.images.length > 1 && (
                 <>
@@ -206,19 +216,12 @@ const firstImage = target.images?.[0];
 
     {target.images?.length > 0 && firstImage && (
       <div id="lightbox" class="lightbox" aria-hidden="true">
-        <button
-          id="lightboxClose"
-          class="lightbox-close"
-          type="button"
-          aria-label="Close full screen image"
-        >
-          ×
-        </button>
+        <button id="lightboxClose" class="lightbox-close" type="button">×</button>
 
         <div class="zoom-controls">
-          <button id="zoomOutBtn" type="button" aria-label="Zoom out">−</button>
-          <button id="zoomResetBtn" type="button" aria-label="Reset zoom">Reset</button>
-          <button id="zoomInBtn" type="button" aria-label="Zoom in">+</button>
+          <button id="zoomOutBtn" type="button">−</button>
+          <button id="zoomResetBtn" type="button">Reset</button>
+          <button id="zoomInBtn" type="button">+</button>
         </div>
 
         {target.images.length > 1 && (
@@ -235,22 +238,17 @@ const firstImage = target.images?.[0];
 
         <p id="lightboxLabel" class="lightbox-label">{firstImage.label}</p>
 
-        <a
-          id="fullResolutionLink"
-          class="full-resolution-link"
-          href={firstImage.url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a id="fullResolutionLink" class="full-resolution-link" href={firstImage.url} target="_blank" rel="noopener noreferrer">
           View full resolution
         </a>
       </div>
     )}
 
     {target.images?.length > 0 && (
-      <script define:vars={{ images: target.images }}>
+      <script define:vars={{ images: target.images, annotatedImage: target.annotatedImage }}>
         let currentIndex = 0;
         let zoomLevel = 1;
+        let showingAnnotated = false;
 
         const mainImage = document.getElementById("mainImage");
         const imageLabel = document.getElementById("imageLabel");
@@ -258,6 +256,9 @@ const firstImage = target.images?.[0];
         const prevBtn = document.getElementById("prevBtn");
         const nextBtn = document.getElementById("nextBtn");
         const thumbs = document.querySelectorAll(".thumb");
+
+        const originalViewBtn = document.getElementById("originalViewBtn");
+        const annotatedViewBtn = document.getElementById("annotatedViewBtn");
 
         const lightbox = document.getElementById("lightbox");
         const lightboxImage = document.getElementById("lightboxImage");
@@ -270,6 +271,19 @@ const firstImage = target.images?.[0];
         const zoomInBtn = document.getElementById("zoomInBtn");
         const zoomOutBtn = document.getElementById("zoomOutBtn");
         const zoomResetBtn = document.getElementById("zoomResetBtn");
+
+        function getCurrentDisplayImage() {
+          return showingAnnotated && annotatedImage
+            ? annotatedImage
+            : images[currentIndex];
+        }
+
+        function updateToggleButtons() {
+          if (!originalViewBtn || !annotatedViewBtn) return;
+
+          originalViewBtn.classList.toggle("active", !showingAnnotated);
+          annotatedViewBtn.classList.toggle("active", showingAnnotated);
+        }
 
         function updateZoom() {
           if (!lightboxImage) return;
@@ -294,30 +308,59 @@ const firstImage = target.images?.[0];
 
         function updateActiveThumb() {
           thumbs.forEach((thumb) => thumb.classList.remove("active"));
-          if (thumbs[currentIndex]) thumbs[currentIndex].classList.add("active");
+          if (!showingAnnotated && thumbs[currentIndex]) {
+            thumbs[currentIndex].classList.add("active");
+          }
+        }
+
+        function updateDisplayedImage() {
+          const img = getCurrentDisplayImage();
+
+          if (mainImage) {
+            mainImage.src = img.url;
+            mainImage.alt = img.label;
+          }
+
+          if (imageLabel) imageLabel.textContent = img.label;
+
+          if (counter && !showingAnnotated) {
+            counter.textContent = `${currentIndex + 1} / ${images.length}`;
+          }
+
+          if (counter && showingAnnotated) {
+            counter.textContent = "Annotated";
+          }
+
+          if (lightboxImage) {
+            lightboxImage.src = img.url;
+            lightboxImage.alt = img.label;
+          }
+
+          if (lightboxLabel) lightboxLabel.textContent = img.label;
+          if (fullResolutionLink) fullResolutionLink.href = img.url;
+
+          updateActiveThumb();
+          updateToggleButtons();
         }
 
         function showImage(index) {
           currentIndex = index;
+          showingAnnotated = false;
           resetZoom();
+          updateDisplayedImage();
+        }
 
-          if (mainImage) {
-            mainImage.src = images[currentIndex].url;
-            mainImage.alt = images[currentIndex].label;
-          }
+        function showAnnotated() {
+          if (!annotatedImage) return;
+          showingAnnotated = true;
+          resetZoom();
+          updateDisplayedImage();
+        }
 
-          if (imageLabel) imageLabel.textContent = images[currentIndex].label;
-          if (counter) counter.textContent = `${currentIndex + 1} / ${images.length}`;
-
-          if (lightboxImage) {
-            lightboxImage.src = images[currentIndex].url;
-            lightboxImage.alt = images[currentIndex].label;
-          }
-
-          if (lightboxLabel) lightboxLabel.textContent = images[currentIndex].label;
-          if (fullResolutionLink) fullResolutionLink.href = images[currentIndex].url;
-
-          updateActiveThumb();
+        function showOriginal() {
+          showingAnnotated = false;
+          resetZoom();
+          updateDisplayedImage();
         }
 
         function openLightbox() {
@@ -337,6 +380,9 @@ const firstImage = target.images?.[0];
         }
 
         if (mainImage) mainImage.addEventListener("click", openLightbox);
+
+        if (originalViewBtn) originalViewBtn.addEventListener("click", showOriginal);
+        if (annotatedViewBtn) annotatedViewBtn.addEventListener("click", showAnnotated);
 
         if (lightboxImage) {
           lightboxImage.addEventListener("click", () => {
@@ -401,8 +447,15 @@ const firstImage = target.images?.[0];
           const isOpen = lightbox?.classList.contains("open");
 
           if (event.key === "Escape") closeLightbox();
-          if (event.key === "ArrowLeft") showImage((currentIndex - 1 + images.length) % images.length);
-          if (event.key === "ArrowRight") showImage((currentIndex + 1) % images.length);
+
+          if (event.key === "ArrowLeft") {
+            showImage((currentIndex - 1 + images.length) % images.length);
+          }
+
+          if (event.key === "ArrowRight") {
+            showImage((currentIndex + 1) % images.length);
+          }
+
           if (isOpen && (event.key === "+" || event.key === "=")) zoomIn();
           if (isOpen && event.key === "-") zoomOut();
           if (isOpen && event.key === "0") resetZoom();
@@ -478,6 +531,28 @@ const firstImage = target.images?.[0];
     background: #05070d;
   }
 
+  .view-toggle {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px;
+    background: #05070d;
+  }
+
+  .view-toggle button {
+    background: #121827;
+    color: white;
+    border: 1px solid rgba(125, 162, 255, 0.35);
+    padding: 8px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .view-toggle button.active {
+    background: #26335f;
+    border-color: #7da2ff;
+  }
+
   .controls {
     display: flex;
     justify-content: center;
@@ -500,7 +575,7 @@ const firstImage = target.images?.[0];
   #counter {
     color: #c7d2ea;
     font-size: 14px;
-    min-width: 60px;
+    min-width: 80px;
     text-align: center;
   }
 

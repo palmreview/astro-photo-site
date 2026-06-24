@@ -2,6 +2,9 @@ name = "astro-photo-admin"
 main = "index.js"
 compatibility_date = "2026-06-22"
 
+[vars]
+PUBLIC_R2_PUBLIC_BASE_URL = "https://pub-e1794c05122d4a5abc65c57bb90c5a64.r2.dev"
+
 [[r2_buckets]]
 binding = "ASTRO_PHOTO_BUCKET"
 bucket_name = "astro-photo"
