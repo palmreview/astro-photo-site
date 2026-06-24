@@ -27,6 +27,15 @@ function isImageKey(key) {
   return /\.(jpg|jpeg|png|webp)$/i.test(key);
 }
 
+function getExtension(key) {
+  const match = key.match(/\.(jpg|jpeg|png|webp)$/i);
+  return match ? match[0].toLowerCase() : ".jpg";
+}
+
+function getFolderFromKey(key) {
+  return key.split("/").slice(0, -1).join("/");
+}
+
 function makePublicUrl(env, key) {
   return `${env.PUBLIC_R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
 }
@@ -46,12 +55,6 @@ async function readJsonObject(env, key, fallback = null) {
   }
 }
 
-async function writeJsonObject(env, key, data) {
-  await env.ASTRO_PHOTO_BUCKET.put(JSON.stringify(data, null, 2), {
-    key
-  });
-}
-
 async function putJson(env, key, data) {
   await env.ASTRO_PHOTO_BUCKET.put(key, JSON.stringify(data, null, 2), {
     httpMetadata: {
@@ -69,7 +72,9 @@ async function getStatus(env) {
     lastRedeployRequestedAt: null,
     lastRedeployStatus: null,
     lastInfoSaveAt: null,
-    lastInfoFolder: null
+    lastInfoFolder: null,
+    lastMainImageAt: null,
+    lastMainImageKey: null
   });
 }
 
@@ -121,9 +126,14 @@ export default {
           filename: object.key.split("/").pop(),
           size: object.size,
           uploaded: object.uploaded,
-          url: makePublicUrl(env, object.key)
+          url: makePublicUrl(env, object.key),
+          isMain: /\/main\.(jpg|jpeg|png|webp)$/i.test(object.key)
         }))
-        .sort((a, b) => a.filename.localeCompare(b.filename));
+        .sort((a, b) => {
+          if (a.isMain && !b.isMain) return -1;
+          if (!a.isMain && b.isMain) return 1;
+          return a.filename.localeCompare(b.filename);
+        });
 
       return json({ ok: true, folder, files });
     }
@@ -159,6 +169,47 @@ export default {
         action: "uploaded",
         key,
         url: makePublicUrl(env, key),
+        status
+      });
+    }
+
+    if (url.pathname === "/make-main" && request.method === "POST") {
+      const body = await request.json();
+      const sourceKey = body.key;
+
+      if (!sourceKey) {
+        return json({ ok: false, error: "Missing key" }, 400);
+      }
+
+      if (!isImageKey(sourceKey)) {
+        return json({ ok: false, error: "Selected file is not an image" }, 400);
+      }
+
+      const sourceObject = await env.ASTRO_PHOTO_BUCKET.get(sourceKey);
+
+      if (!sourceObject) {
+        return json({ ok: false, error: "Source file not found", key: sourceKey }, 404);
+      }
+
+      const folder = getFolderFromKey(sourceKey);
+      const extension = getExtension(sourceKey);
+      const mainKey = `${folder}/main${extension}`;
+
+      await env.ASTRO_PHOTO_BUCKET.put(mainKey, sourceObject.body, {
+        httpMetadata: sourceObject.httpMetadata
+      });
+
+      const status = await updateStatus(env, {
+        lastMainImageAt: new Date().toISOString(),
+        lastMainImageKey: mainKey
+      });
+
+      return json({
+        ok: true,
+        action: "main_image_updated",
+        sourceKey,
+        mainKey,
+        url: makePublicUrl(env, mainKey),
         status
       });
     }
@@ -208,9 +259,7 @@ export default {
       const info = await readJsonObject(env, `${folder}/info.json`, {
         name: folder.split("/").pop() || "",
         catalog: "",
-        category: folder.startsWith("solar-system/")
-          ? "Solar System"
-          : "Deep Sky",
+        category: folder.startsWith("solar-system/") ? "Solar System" : "Deep Sky",
         shortDescription: "",
         description: "",
         distance: "",

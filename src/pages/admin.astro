@@ -60,6 +60,9 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
       <section class="panel">
         <h2>Files in folder</h2>
+        <p class="muted">
+          Use <strong>Make Main</strong> to choose which image appears first on the target page and homepage.
+        </p>
         <div id="fileList" class="file-list">
           <p class="muted">Enter a folder and click “List files in folder.”</p>
         </div>
@@ -246,6 +249,12 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           </div>
 
           <div class="status-card">
+            <span>Last main image</span>
+            <strong>${formatDate(status.lastMainImageAt)}</strong>
+            <code>${status.lastMainImageKey || ""}</code>
+          </div>
+
+          <div class="status-card">
             <span>Last hidden file</span>
             <strong>${formatDate(status.lastHideAt)}</strong>
             <code>${status.lastHideKey || ""}</code>
@@ -355,14 +364,21 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         fileList.innerHTML = files
           .map(
             (file) => `
-              <div class="file-card">
+              <div class="file-card ${file.isMain ? "main-file" : ""}">
                 <img src="${file.url}" alt="${file.filename}" />
                 <div class="file-info">
-                  <strong>${file.filename}</strong>
+                  <strong>${file.filename} ${file.isMain ? "⭐ Main" : ""}</strong>
                   <code>${file.key}</code>
                   <a href="${file.url}" target="_blank" rel="noopener noreferrer">View full image</a>
                 </div>
-                <button class="hide-file-btn" data-key="${file.key}" type="button">Hide</button>
+                <div class="file-actions">
+                  <button class="make-main-btn" data-key="${file.key}" type="button">
+                    Make Main
+                  </button>
+                  <button class="hide-file-btn" data-key="${file.key}" type="button">
+                    Hide
+                  </button>
+                </div>
               </div>
             `
           )
@@ -375,6 +391,50 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
             await refreshStatus();
           });
         });
+
+        document.querySelectorAll(".make-main-btn").forEach((button) => {
+          button.addEventListener("click", async () => {
+            await makeMainFile(button.dataset.key);
+            await listFiles();
+            await refreshStatus();
+          });
+        });
+      }
+
+      async function makeMainFile(key) {
+        if (!confirm(`Make this the main image?\n\n${key}`)) return;
+
+        try {
+          show(`Setting main image from ${key}...`);
+
+          const response = await fetch(`${adminApiUrl}/make-main`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${getToken()}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ key })
+          });
+
+          const data = await readResponse(response);
+
+          if (!response.ok) {
+            show({
+              ok: false,
+              message: "Make main failed",
+              status: response.status,
+              details: data
+            });
+            return;
+          }
+
+          show({
+            ...data,
+            note: "Main image updated. Click Redeploy Site for the homepage/target page to update."
+          });
+        } catch (error) {
+          show(`Make main failed: ${error.message}`);
+        }
       }
 
       async function hideFile(key) {
@@ -697,7 +757,8 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     overflow-wrap: anywhere;
   }
 
-  .button-row {
+  .button-row,
+  .file-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
@@ -715,6 +776,14 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   button:disabled {
     opacity: 0.55;
     cursor: wait;
+  }
+
+  .make-main-btn {
+    background: #26335f;
+  }
+
+  .hide-file-btn {
+    background: #3b1c28;
   }
 
   .preview {
@@ -742,6 +811,11 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     border: 1px solid rgba(125, 162, 255, 0.18);
     border-radius: 14px;
     padding: 12px;
+  }
+
+  .file-card.main-file {
+    border-color: rgba(255, 220, 120, 0.75);
+    background: rgba(40, 32, 12, 0.65);
   }
 
   .file-card img {
