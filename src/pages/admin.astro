@@ -53,6 +53,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         <div class="button-row">
           <button id="uploadBtn" type="button">Upload</button>
           <button id="uploadSkyMapBtn" type="button">Upload Sky Map</button>
+          <button id="uploadAnnotatedBtn" type="button">Upload Annotated Image</button>
           <button id="listBtn" type="button">List files in folder</button>
           <button id="loadInfoBtn" type="button">Load Target Info</button>
           <button id="loadObservationsBtn" type="button">Load Observations</button>
@@ -60,8 +61,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         </div>
 
         <p class="muted">
-          Sky Map upload will save the selected image as <code>sky-map.jpg</code>
-          in the selected folder.
+          Sky Map saves as <code>sky-map.jpg</code>. Annotated Image saves as <code>annotated.jpg</code>.
         </p>
       </section>
 
@@ -172,6 +172,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
       const uploadBtn = document.getElementById("uploadBtn");
       const uploadSkyMapBtn = document.getElementById("uploadSkyMapBtn");
+      const uploadAnnotatedBtn = document.getElementById("uploadAnnotatedBtn");
       const listBtn = document.getElementById("listBtn");
       const listHiddenBtn = document.getElementById("listHiddenBtn");
       const loadInfoBtn = document.getElementById("loadInfoBtn");
@@ -401,6 +402,18 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         await uploadFileToKey(`${folder}/sky-map.jpg`, uploadSkyMapBtn);
       });
 
+      uploadAnnotatedBtn.addEventListener("click", async () => {
+        if (!requireBasics()) return;
+
+        const folder = getFolder();
+
+        if (!confirm(`Upload selected image as annotated.jpg?\n\n${folder}/annotated.jpg`)) {
+          return;
+        }
+
+        await uploadFileToKey(`${folder}/annotated.jpg`, uploadAnnotatedBtn);
+      });
+
       async function listFiles() {
         if (!requireBasics()) return;
 
@@ -427,10 +440,15 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         }
 
         fileList.innerHTML = files.map((file) => `
-          <div class="file-card ${file.isMain ? "main-file" : ""} ${file.isSkyMap ? "sky-map-file" : ""}">
+          <div class="file-card ${file.isMain ? "main-file" : ""} ${file.isSkyMap ? "sky-map-file" : ""} ${file.filename === "annotated.jpg" ? "annotated-file" : ""}">
             <img src="${file.url}" alt="${file.filename}" />
             <div class="file-info">
-              <strong>${file.filename} ${file.isMain ? "⭐ Main" : ""} ${file.isSkyMap ? "🗺️ Sky Map" : ""}</strong>
+              <strong>
+                ${file.filename}
+                ${file.isMain ? "⭐ Main" : ""}
+                ${file.isSkyMap ? "🗺️ Sky Map" : ""}
+                ${file.filename === "annotated.jpg" ? "🏷️ Annotated" : ""}
+              </strong>
               <code>${file.key}</code>
               <a href="${file.url}" target="_blank" rel="noopener noreferrer">View full image</a>
             </div>
@@ -902,6 +920,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
   #generateInfoBtn,
   #uploadSkyMapBtn,
+  #uploadAnnotatedBtn,
   .make-main-btn,
   .restore-file-btn,
   .rename-file-btn {
@@ -952,6 +971,11 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   .file-card.sky-map-file {
     border-color: rgba(120, 180, 255, 0.75);
     background: rgba(12, 24, 45, 0.65);
+  }
+
+  .file-card.annotated-file {
+    border-color: rgba(140, 255, 190, 0.75);
+    background: rgba(12, 45, 28, 0.65);
   }
 
   .file-card.hidden-file {
