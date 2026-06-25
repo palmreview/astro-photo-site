@@ -52,11 +52,17 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
         <div class="button-row">
           <button id="uploadBtn" type="button">Upload</button>
+          <button id="uploadSkyMapBtn" type="button">Upload Sky Map</button>
           <button id="listBtn" type="button">List files in folder</button>
           <button id="loadInfoBtn" type="button">Load Target Info</button>
           <button id="loadObservationsBtn" type="button">Load Observations</button>
           <button id="redeployBtn" type="button">Redeploy Site</button>
         </div>
+
+        <p class="muted">
+          Sky Map upload will save the selected image as <code>sky-map.jpg</code>
+          in the selected folder.
+        </p>
       </section>
 
       <section class="panel">
@@ -133,91 +139,25 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         </div>
 
         <div class="form-grid">
-          <label>
-            Name
-            <input id="infoName" type="text" placeholder="Bode's Galaxy" />
-          </label>
-
-          <label>
-            Catalog
-            <input id="infoCatalog" type="text" placeholder="M81" />
-          </label>
-
-          <label>
-            Category
-            <input id="infoCategory" type="text" placeholder="Deep Sky" />
-          </label>
-
-          <label>
-            Object Type
-            <input id="infoObjectType" type="text" placeholder="Grand Design Spiral Galaxy" />
-          </label>
-
-          <label>
-            Constellation
-            <input id="infoConstellation" type="text" placeholder="Ursa Major" />
-          </label>
-
-          <label>
-            Distance
-            <input id="infoDistance" type="text" placeholder="~12 million light-years" />
-          </label>
-
-          <label>
-            Apparent Magnitude
-            <input id="infoApparentMagnitude" type="text" placeholder="6.9" />
-          </label>
-
-          <label>
-            Diameter
-            <input id="infoDiameter" type="text" placeholder="~90,000 light-years" />
-          </label>
-
-          <label>
-            Discovered
-            <input id="infoDiscovered" type="text" placeholder="1774" />
-          </label>
-
-          <label>
-            Date Captured
-            <input id="infoDateCaptured" type="text" placeholder="June 2026" />
-          </label>
-
-          <label>
-            Equipment
-            <input id="infoEquipment" type="text" placeholder="Seestar S30" />
-          </label>
-
-          <label>
-            Location
-            <input id="infoLocation" type="text" placeholder="Florida, USA" />
-          </label>
+          <label>Name <input id="infoName" type="text" /></label>
+          <label>Catalog <input id="infoCatalog" type="text" /></label>
+          <label>Category <input id="infoCategory" type="text" /></label>
+          <label>Object Type <input id="infoObjectType" type="text" /></label>
+          <label>Constellation <input id="infoConstellation" type="text" /></label>
+          <label>Distance <input id="infoDistance" type="text" /></label>
+          <label>Apparent Magnitude <input id="infoApparentMagnitude" type="text" /></label>
+          <label>Diameter <input id="infoDiameter" type="text" /></label>
+          <label>Discovered <input id="infoDiscovered" type="text" /></label>
+          <label>Date Captured <input id="infoDateCaptured" type="text" /></label>
+          <label>Equipment <input id="infoEquipment" type="text" /></label>
+          <label>Location <input id="infoLocation" type="text" /></label>
         </div>
 
-        <label>
-          Short Description
-          <textarea id="infoShortDescription" rows="2"></textarea>
-        </label>
-
-        <label>
-          Description
-          <textarea id="infoDescription" rows="4"></textarea>
-        </label>
-
-        <label>
-          What you're looking at
-          <textarea id="infoWhatYouAreSeeing" rows="4"></textarea>
-        </label>
-
-        <label>
-          Why it is interesting
-          <textarea id="infoWhyItIsInteresting" rows="4"></textarea>
-        </label>
-
-        <label>
-          Capture Notes
-          <textarea id="infoCaptureNotes" rows="4"></textarea>
-        </label>
+        <label>Short Description <textarea id="infoShortDescription" rows="2"></textarea></label>
+        <label>Description <textarea id="infoDescription" rows="4"></textarea></label>
+        <label>What you're looking at <textarea id="infoWhatYouAreSeeing" rows="4"></textarea></label>
+        <label>Why it is interesting <textarea id="infoWhyItIsInteresting" rows="4"></textarea></label>
+        <label>Capture Notes <textarea id="infoCaptureNotes" rows="4"></textarea></label>
       </section>
 
       <pre id="result">Ready.</pre>
@@ -231,6 +171,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       const observationList = document.getElementById("observationList");
 
       const uploadBtn = document.getElementById("uploadBtn");
+      const uploadSkyMapBtn = document.getElementById("uploadSkyMapBtn");
       const listBtn = document.getElementById("listBtn");
       const listHiddenBtn = document.getElementById("listHiddenBtn");
       const loadInfoBtn = document.getElementById("loadInfoBtn");
@@ -321,9 +262,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
         const data = await readResponse(response);
 
-        if (!response.ok) {
-          throw { response, data };
-        }
+        if (!response.ok) throw { response, data };
 
         return data;
       }
@@ -394,6 +333,74 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         preview.style.display = "block";
       });
 
+      async function uploadFileToKey(key, button) {
+        const file = fileInput.files[0];
+
+        if (!file) {
+          show("Please choose a file first.");
+          return;
+        }
+
+        try {
+          button.disabled = true;
+          show(`Uploading ${key}...`);
+
+          const response = await fetch(`${adminApiUrl}/upload?key=${encodeURIComponent(key)}`, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${getToken()}`,
+              "Content-Type": file.type || "application/octet-stream"
+            },
+            body: file
+          });
+
+          const data = await readResponse(response);
+
+          if (!response.ok) {
+            show({ ok: false, message: "Upload failed", details: data });
+            return;
+          }
+
+          show({
+            ...data,
+            note: "Upload complete. Click Redeploy Site for the public site to update."
+          });
+
+          await listFiles();
+          await refreshStatus();
+        } catch (error) {
+          show(`Upload failed: ${error.message}`);
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      uploadBtn.addEventListener("click", async () => {
+        if (!requireBasics()) return;
+
+        const folder = getFolder();
+        const filename = document.getElementById("filename").value.trim();
+
+        if (!filename) {
+          show("Please enter a filename.");
+          return;
+        }
+
+        await uploadFileToKey(`${folder}/${filename}`, uploadBtn);
+      });
+
+      uploadSkyMapBtn.addEventListener("click", async () => {
+        if (!requireBasics()) return;
+
+        const folder = getFolder();
+
+        if (!confirm(`Upload selected image as sky-map.jpg?\n\n${folder}/sky-map.jpg`)) {
+          return;
+        }
+
+        await uploadFileToKey(`${folder}/sky-map.jpg`, uploadSkyMapBtn);
+      });
+
       async function listFiles() {
         if (!requireBasics()) return;
 
@@ -420,7 +427,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         }
 
         fileList.innerHTML = files.map((file) => `
-          <div class="file-card ${file.isMain ? "main-file" : ""}">
+          <div class="file-card ${file.isMain ? "main-file" : ""} ${file.isSkyMap ? "sky-map-file" : ""}">
             <img src="${file.url}" alt="${file.filename}" />
             <div class="file-info">
               <strong>${file.filename} ${file.isMain ? "⭐ Main" : ""} ${file.isSkyMap ? "🗺️ Sky Map" : ""}</strong>
@@ -460,13 +467,63 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         });
       }
 
+      async function makeMainFile(key) {
+        if (!confirm(`Make this the main image?\n\n${key}`)) return;
+
+        try {
+          const data = await api("/make-main", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key })
+          });
+
+          show({ ...data, note: "Click Redeploy Site for the public site to update." });
+        } catch (error) {
+          show({ ok: false, message: "Make main failed", details: error.data || error.message });
+        }
+      }
+
+      async function renameFile(oldKey, currentFilename) {
+        const newFilename = prompt("Enter new filename:", currentFilename);
+        if (!newFilename) return;
+
+        try {
+          const data = await api("/rename", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ oldKey, newFilename })
+          });
+
+          show({
+            ...data,
+            note: "File renamed successfully. Click Redeploy Site for the public site to update."
+          });
+        } catch (error) {
+          show({ ok: false, message: "Rename failed", details: error.data || error.message });
+        }
+      }
+
+      async function hideFile(key) {
+        if (!confirm(`Hide this file?\n\n${key}`)) return;
+
+        try {
+          const data = await api("/hide", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ key })
+          });
+
+          show(data);
+        } catch (error) {
+          show({ ok: false, message: "Hide failed", details: error.data || error.message });
+        }
+      }
+
       async function listHiddenFiles() {
         if (!requireBasics({ requireFolder: false })) return;
 
         try {
           listHiddenBtn.disabled = true;
-          show("Listing hidden files...");
-
           const data = await api("/hidden");
           renderHiddenList(data.files || []);
           show(data);
@@ -514,62 +571,6 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
             await refreshStatus();
           });
         });
-      }
-
-      async function makeMainFile(key) {
-        if (!confirm(`Make this the main image?\n\n${key}`)) return;
-
-        try {
-          const data = await api("/make-main", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key })
-          });
-
-          show({ ...data, note: "Click Redeploy Site for the public site to update." });
-        } catch (error) {
-          show({ ok: false, message: "Make main failed", details: error.data || error.message });
-        }
-      }
-
-      async function renameFile(oldKey, currentFilename) {
-        const newFilename = prompt("Enter new filename:", currentFilename);
-
-        if (!newFilename) return;
-
-        try {
-          const data = await api("/rename", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              oldKey,
-              newFilename
-            })
-          });
-
-          show({
-            ...data,
-            note: "File renamed successfully. Click Redeploy Site for the public site to update."
-          });
-        } catch (error) {
-          show({ ok: false, message: "Rename failed", details: error.data || error.message });
-        }
-      }
-
-      async function hideFile(key) {
-        if (!confirm(`Hide this file?\n\n${key}`)) return;
-
-        try {
-          const data = await api("/hide", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ key })
-          });
-
-          show(data);
-        } catch (error) {
-          show({ ok: false, message: "Hide failed", details: error.data || error.message });
-        }
       }
 
       async function restoreHiddenFile(hiddenKey) {
@@ -702,50 +703,6 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         }
       }
 
-      uploadBtn.addEventListener("click", async () => {
-        if (!requireBasics()) return;
-
-        const folder = getFolder();
-        const filename = document.getElementById("filename").value.trim();
-        const file = fileInput.files[0];
-
-        if (!filename || !file) {
-          show("Please enter filename and choose a file.");
-          return;
-        }
-
-        const key = `${folder}/${filename}`;
-
-        try {
-          uploadBtn.disabled = true;
-          show(`Uploading ${key}...`);
-
-          const response = await fetch(`${adminApiUrl}/upload?key=${encodeURIComponent(key)}`, {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${getToken()}`,
-              "Content-Type": file.type || "application/octet-stream"
-            },
-            body: file
-          });
-
-          const data = await readResponse(response);
-
-          if (!response.ok) {
-            show({ ok: false, message: "Upload failed", details: data });
-            return;
-          }
-
-          show(data);
-          await listFiles();
-          await refreshStatus();
-        } catch (error) {
-          show(`Upload failed: ${error.message}`);
-        } finally {
-          uploadBtn.disabled = false;
-        }
-      });
-
       async function loadInfo() {
         if (!requireBasics()) return;
 
@@ -767,15 +724,9 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
         try {
           generateInfoBtn.disabled = true;
-          show(`Generating starter info for ${folder}...`);
-
           const data = await api(`/generate-info?folder=${encodeURIComponent(folder)}`);
           fillInfoFields(data.info || {});
-
-          show({
-            ...data,
-            note: "Starter info filled in. Review it, then click Save Target Info."
-          });
+          show({ ...data, note: "Starter info filled in. Review it, then click Save Target Info." });
         } catch (error) {
           show({ ok: false, message: "Generate info failed", details: error.data || error.message });
         } finally {
@@ -808,15 +759,8 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
         try {
           redeployBtn.disabled = true;
-          show("Requesting site redeploy...");
-
           const data = await api("/redeploy", { method: "POST" });
-
-          show({
-            ...data,
-            note: "Redeploy requested. Wait for Cloudflare Pages to finish, then refresh the public site."
-          });
-
+          show({ ...data, note: "Redeploy requested. Wait for Cloudflare Pages to finish, then refresh the public site." });
           await refreshStatus();
         } catch (error) {
           show({ ok: false, message: "Redeploy failed", details: error.data || error.message });
@@ -956,10 +900,8 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
     cursor: wait;
   }
 
-  #generateInfoBtn {
-    background: #26335f;
-  }
-
+  #generateInfoBtn,
+  #uploadSkyMapBtn,
   .make-main-btn,
   .restore-file-btn,
   .rename-file-btn {
@@ -1005,6 +947,11 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   .file-card.main-file {
     border-color: rgba(255, 220, 120, 0.75);
     background: rgba(40, 32, 12, 0.65);
+  }
+
+  .file-card.sky-map-file {
+    border-color: rgba(120, 180, 255, 0.75);
+    background: rgba(12, 24, 45, 0.65);
   }
 
   .file-card.hidden-file {
