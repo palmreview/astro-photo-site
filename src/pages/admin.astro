@@ -26,12 +26,45 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       </section>
 
       <section class="panel">
-        <h2>Upload photo</h2>
+        <h2>Target Selector</h2>
+        <p class="muted">
+          Pick an existing target so you do not have to type the folder every time.
+          You can still create/use a brand-new folder below.
+        </p>
 
         <label>
           Admin token
           <input id="token" type="password" placeholder="Admin token" />
         </label>
+
+        <div class="form-grid">
+          <label>
+            Existing target
+            <select id="targetSelect">
+              <option value="">Load targets first...</option>
+            </select>
+          </label>
+
+          <label>
+            New target folder
+            <input id="newFolder" type="text" placeholder="deep-sky/M 27" />
+          </label>
+        </div>
+
+        <div class="button-row">
+          <button id="loadTargetsBtn" type="button">Load Targets</button>
+          <button id="useSelectedTargetBtn" type="button">Use Selected Target</button>
+          <button id="useNewFolderBtn" type="button">Use New Folder</button>
+        </div>
+
+        <p class="selected-folder">
+          Current folder:
+          <code id="selectedFolderLabel">None selected</code>
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Upload photo</h2>
 
         <label>
           R2 folder
@@ -73,7 +106,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         </p>
 
         <div id="fileList" class="file-list">
-          <p class="muted">Enter a folder and click “List files in folder.”</p>
+          <p class="muted">Choose a folder and click “List files in folder.”</p>
         </div>
       </section>
 
@@ -170,6 +203,16 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       const hiddenList = document.getElementById("hiddenList");
       const observationList = document.getElementById("observationList");
 
+      const tokenInput = document.getElementById("token");
+      const folderInput = document.getElementById("folder");
+      const newFolderInput = document.getElementById("newFolder");
+      const targetSelect = document.getElementById("targetSelect");
+      const selectedFolderLabel = document.getElementById("selectedFolderLabel");
+
+      const loadTargetsBtn = document.getElementById("loadTargetsBtn");
+      const useSelectedTargetBtn = document.getElementById("useSelectedTargetBtn");
+      const useNewFolderBtn = document.getElementById("useNewFolderBtn");
+
       const uploadBtn = document.getElementById("uploadBtn");
       const uploadSkyMapBtn = document.getElementById("uploadSkyMapBtn");
       const uploadAnnotatedBtn = document.getElementById("uploadAnnotatedBtn");
@@ -185,6 +228,8 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
       const fileInput = document.getElementById("file");
       const preview = document.getElementById("preview");
+
+      const STORAGE_KEY = "astroAdminSelectedFolder";
 
       const infoFields = {
         name: document.getElementById("infoName"),
@@ -212,11 +257,25 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       }
 
       function getToken() {
-        return document.getElementById("token").value.trim();
+        return tokenInput.value.trim();
       }
 
       function getFolder() {
-        return document.getElementById("folder").value.trim().replace(/\/$/, "");
+        return folderInput.value.trim().replace(/\/$/, "");
+      }
+
+      function setFolder(folder) {
+        const cleaned = folder.trim().replace(/\/$/, "");
+        folderInput.value = cleaned;
+        selectedFolderLabel.textContent = cleaned || "None selected";
+
+        if (cleaned) {
+          localStorage.setItem(STORAGE_KEY, cleaned);
+        }
+
+        [...targetSelect.options].forEach((option) => {
+          option.selected = option.value === cleaned;
+        });
       }
 
       function requireBasics({ requireFolder = true } = {}) {
@@ -231,7 +290,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         }
 
         if (requireFolder && !getFolder()) {
-          show("Please enter a folder.");
+          show("Please select or enter a folder.");
           return false;
         }
 
@@ -289,6 +348,66 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
           info[key] = element.value.trim();
         });
         return info;
+      }
+
+      async function loadTargets() {
+        if (!requireBasics({ requireFolder: false })) return;
+
+        try {
+          loadTargetsBtn.disabled = true;
+          show("Loading target folders...");
+
+          const data = await api("/targets");
+          const folders = data.folders || [];
+
+          targetSelect.innerHTML = "";
+
+          if (!folders.length) {
+            targetSelect.innerHTML = `<option value="">No targets found</option>`;
+          } else {
+            targetSelect.innerHTML = `<option value="">Select target...</option>` +
+              folders.map((folder) => `<option value="${folder}">${folder}</option>`).join("");
+          }
+
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved && folders.includes(saved)) {
+            setFolder(saved);
+          }
+
+          show(data);
+        } catch (error) {
+          show({ ok: false, message: "Load targets failed", details: error.data || error.message });
+        } finally {
+          loadTargetsBtn.disabled = false;
+        }
+      }
+
+      function useSelectedTarget() {
+        const folder = targetSelect.value;
+        if (!folder) {
+          show("Please select a target first.");
+          return;
+        }
+
+        setFolder(folder);
+        show(`Selected folder: ${folder}`);
+      }
+
+      function useNewFolder() {
+        const folder = newFolderInput.value.trim().replace(/\/$/, "");
+
+        if (!folder) {
+          show("Please enter a new folder, like deep-sky/M 27.");
+          return;
+        }
+
+        setFolder(folder);
+        show({
+          ok: true,
+          action: "new_folder_selected",
+          folder,
+          note: "Now upload an image or save info to create files in this folder."
+        });
       }
 
       function renderStatus(status) {
@@ -369,6 +488,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
           await listFiles();
           await refreshStatus();
+          await loadTargets();
         } catch (error) {
           show(`Upload failed: ${error.message}`);
         } finally {
@@ -767,6 +887,7 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
 
           show(data);
           await refreshStatus();
+          await loadTargets();
         } catch (error) {
           show({ ok: false, message: "Save info failed", details: error.data || error.message });
         }
@@ -787,6 +908,20 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
         }
       });
 
+      folderInput.addEventListener("change", () => {
+        setFolder(getFolder());
+      });
+
+      targetSelect.addEventListener("change", () => {
+        if (targetSelect.value) {
+          setFolder(targetSelect.value);
+        }
+      });
+
+      loadTargetsBtn.addEventListener("click", loadTargets);
+      useSelectedTargetBtn.addEventListener("click", useSelectedTarget);
+      useNewFolderBtn.addEventListener("click", useNewFolder);
+
       listBtn.addEventListener("click", listFiles);
       listHiddenBtn.addEventListener("click", listHiddenFiles);
       loadInfoBtn.addEventListener("click", loadInfo);
@@ -795,6 +930,11 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
       refreshStatusBtn.addEventListener("click", refreshStatus);
       addObservationBtn.addEventListener("click", addObservation);
       loadObservationsBtn.addEventListener("click", loadObservations);
+
+      const savedFolder = localStorage.getItem(STORAGE_KEY);
+      if (savedFolder) {
+        setFolder(savedFolder);
+      }
     </script>
   </body>
 </html>
@@ -840,7 +980,8 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   }
 
   input,
-  textarea {
+  textarea,
+  select {
     padding: 12px;
     border-radius: 10px;
     border: 1px solid rgba(125, 162, 255, 0.35);
@@ -861,6 +1002,11 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   small {
     color: #c7d2ea;
     overflow-wrap: anywhere;
+  }
+
+  .selected-folder {
+    margin-top: 16px;
+    color: #c7d2ea;
   }
 
   .form-grid,
@@ -921,6 +1067,9 @@ const adminApiUrl = import.meta.env.PUBLIC_ADMIN_API_URL;
   #generateInfoBtn,
   #uploadSkyMapBtn,
   #uploadAnnotatedBtn,
+  #loadTargetsBtn,
+  #useSelectedTargetBtn,
+  #useNewFolderBtn,
   .make-main-btn,
   .restore-file-btn,
   .rename-file-btn {

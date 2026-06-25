@@ -15,7 +15,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "M81 is gravitationally interacting with nearby M82. That interaction helps make this galaxy pair one of the most interesting wide-field galaxy targets for amateur telescopes.",
     captureNotes: "Captured with a Seestar S30."
   },
-
   m82: {
     name: "Cigar Galaxy",
     catalog: "M82",
@@ -32,7 +31,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "M82 is one of the nearest and brightest starburst galaxies, making it a dramatic companion to M81 in astrophotography.",
     captureNotes: "Captured with a Seestar S30."
   },
-
   m51: {
     name: "Whirlpool Galaxy",
     catalog: "M51",
@@ -49,7 +47,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "M51 is a classic example of gravitational interaction between galaxies and is one of the best spring galaxy targets.",
     captureNotes: "Captured with a Seestar S30."
   },
-
   m104: {
     name: "Sombrero Galaxy",
     catalog: "M104",
@@ -66,7 +63,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "Its unusual edge-on appearance makes it one of the most visually distinctive galaxies for small telescopes.",
     captureNotes: "Captured with a Seestar S30."
   },
-
   m97: {
     name: "Owl Nebula",
     catalog: "M97",
@@ -83,7 +79,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "It shows the late-life stage of a Sun-like star and is a challenging but rewarding small-telescope target.",
     captureNotes: "Captured with a Seestar S30."
   },
-
   m13: {
     name: "Great Hercules Cluster",
     catalog: "M13",
@@ -100,7 +95,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "M13 is one of the best globular clusters for beginner astrophotography because it is bright and resolves into many stars.",
     captureNotes: "Captured with a Seestar S30."
   },
-
   m27: {
     name: "Dumbbell Nebula",
     catalog: "M27",
@@ -117,7 +111,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "M27 is bright, colorful, and one of the easiest nebulae to capture with a small smart telescope.",
     captureNotes: "Captured with a Seestar S30."
   },
-
   m57: {
     name: "Ring Nebula",
     catalog: "M57",
@@ -134,7 +127,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "It is one of the most famous planetary nebulae and shows the future fate of Sun-like stars.",
     captureNotes: "Captured with a Seestar S30."
   },
-
   m44: {
     name: "Beehive Cluster",
     catalog: "M44",
@@ -151,7 +143,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "It is one of the closest and brightest open clusters, making it a great beginner target.",
     captureNotes: "Captured with a Seestar S30."
   },
-
   ngc4565: {
     name: "Needle Galaxy",
     catalog: "NGC 4565",
@@ -168,7 +159,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "It gives a dramatic side-view of what a spiral galaxy disk can look like.",
     captureNotes: "Captured with a Seestar S30."
   },
-
   sun: {
     name: "Sun",
     catalog: "",
@@ -185,7 +175,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "Sunspots are cooler, magnetically active regions that change from day to day.",
     captureNotes: "Captured safely using the Seestar solar filter."
   },
-
   moon: {
     name: "Moon",
     catalog: "",
@@ -202,7 +191,6 @@ const TARGET_LIBRARY = {
     whyItIsInteresting: "The Moon changes appearance every night as sunlight strikes it from different angles.",
     captureNotes: "Captured with a Seestar S30."
   },
-
   sirius: {
     name: "Sirius",
     catalog: "",
@@ -302,6 +290,16 @@ function getFolderFromKey(key) {
   return key.split("/").slice(0, -1).join("/");
 }
 
+function getFolderFromObjectKey(key) {
+  const parts = key.split("/");
+  if (parts.length < 3) return null;
+  if (key.startsWith("_hidden/")) return null;
+  if (key.includes("/Raw/")) return null;
+  if (!isImageKey(key)) return null;
+
+  return `${parts[0]}/${parts[1]}`;
+}
+
 function makePublicUrl(env, key) {
   return `${env.PUBLIC_R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
 }
@@ -392,13 +390,24 @@ function summarizeObservations(observations) {
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") return json({ ok: true });
-
     if (!checkAuth(request, env)) return unauthorized();
 
     const url = new URL(request.url);
 
     if (url.pathname === "/status" && request.method === "GET") {
       return json({ ok: true, status: await getStatus(env) });
+    }
+
+    if (url.pathname === "/targets" && request.method === "GET") {
+      const listed = await env.ASTRO_PHOTO_BUCKET.list();
+
+      const folders = [...new Set(
+        listed.objects
+          .map((object) => getFolderFromObjectKey(object.key))
+          .filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b));
+
+      return json({ ok: true, folders });
     }
 
     if (url.pathname === "/generate-info" && request.method === "GET") {
@@ -600,25 +609,7 @@ export default {
       const folder = cleanFolder(url.searchParams.get("folder"));
       if (!folder) return json({ ok: false, error: "Missing folder" }, 400);
 
-      const info = await readJsonObject(env, `${folder}/info.json`, {
-        name: folder.split("/").pop() || "",
-        catalog: "",
-        category: folder.startsWith("solar-system/") ? "Solar System" : "Deep Sky",
-        objectType: "",
-        constellation: "",
-        distance: "",
-        apparentMagnitude: "",
-        diameter: "",
-        discovered: "",
-        shortDescription: "",
-        description: "",
-        dateCaptured: "",
-        equipment: "Seestar S30",
-        location: "Florida, USA",
-        whatYouAreSeeing: "",
-        whyItIsInteresting: "",
-        captureNotes: ""
-      });
+      const info = await readJsonObject(env, `${folder}/info.json`, getStarterInfoForFolder(folder));
 
       return json({ ok: true, folder, info });
     }
@@ -676,7 +667,6 @@ export default {
       };
 
       observations.push(observation);
-
       await putJson(env, `${folder}/observations.json`, observations);
 
       const status = await updateStatus(env, {
